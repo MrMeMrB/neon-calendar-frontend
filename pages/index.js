@@ -20,7 +20,9 @@ export default function Home() {
   const fetchSavedEvents = async () => {
     if (!BACKEND_API) return;
     try {
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCalendar}`);
+      // Forced cache-busting timestamp tells browser to request a fresh filtered view from backend
+      const timestamp = new Date().getTime();
+      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCalendar}&t=${timestamp}`);
       const data = await res.json();
       if (Array.isArray(data)) setDbEvents(data);
     } catch (err) {
@@ -28,7 +30,9 @@ export default function Home() {
     }
   };
 
+  // Instantly clears the screen matrix and runs the filtered fetch when a sidebar channel button is pressed
   useEffect(() => {
+    setDbEvents([]);
     fetchSavedEvents();
   }, [BACKEND_API, currentCalendar]);
 
@@ -114,7 +118,6 @@ export default function Home() {
         .fc th { background-color: #1f2937; color: #94a3b8; font-weight: 700; font-size: 0.85rem; padding: 12px 0 !important; border: 1px solid #374151; }
         .fc td { border: 1px solid #1f2937 !important; }
         .fc-list-day-cushion { background-color: #1f2937 !important; }
-        /* Style fixes to ensure text colors read cleanly inside full-colored event bars */
         .fc-v-event .fc-event-title, .fc-h-event .fc-event-title { font-weight: 600 !important; color: #090d16 !important; }
         .fc-daygrid-event { border: none !important; padding: 2px 4px !important; margin: 2px 0 !important; border-radius: 4px !important; }
         @media (max-width: 900px) {
@@ -126,7 +129,6 @@ export default function Home() {
       {/* TOP BRAND NAVIGATION */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Linked up your custom uploaded brand asset file */}
           <img src="/image_28ef8d.jpg" alt="Liam's Life" style={{ height: '48px', width: 'auto', borderRadius: '6px' }} />
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: '800', margin: 0, color: '#fff' }}>Unified Intelligence</h2>
@@ -171,7 +173,7 @@ export default function Home() {
             height="auto" 
             eventTextColor="#090d16"
             eventContent={(eventInfo) => {
-              // Custom injection hook: dynamically maps specific event colors passed by our server streams
+              // Custom injection hook: Extracts custom color traits assigned directly by the server database properties
               const customColor = eventInfo.event.extendedProps.color || eventInfo.event.backgroundColor;
               return (
                 <div style={{ 
