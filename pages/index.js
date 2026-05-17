@@ -8,8 +8,8 @@ export default function Home() {
   const [stagedEvents, setStagedEvents] = useState([]);
   const [urlInput, setUrlInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Fallback to avoid crashes if the variable isn't fully loaded yet
   const BACKEND_API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
   const fetchSavedEvents = async () => {
@@ -31,6 +31,7 @@ export default function Home() {
     const file = e.target.files[0];
     if (!file) return;
     setLoading(true);
+    setIsModalOpen(false); // Close modal to show progress/staging
     try {
       const buffer = await file.arrayBuffer();
       const res = await fetch(`${BACKEND_API}/api/upload-document`, {
@@ -52,6 +53,7 @@ export default function Home() {
     e.preventDefault();
     if (!urlInput.trim()) return;
     setLoading(true);
+    setIsModalOpen(false);
     try {
       const res = await fetch(`${BACKEND_API}/api/upload-url`, {
         method: 'POST',
@@ -89,55 +91,132 @@ export default function Home() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f1f5f9', padding: '24px', fontFamily: 'sans-serif' }}>
-      <header style={{ marginBottom: '32px', borderBottom: '1px solid #334155', paddingBottom: '20px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#38bdf8' }}>Master Workspace</h1>
-        <p style={{ fontSize: '12px', color: '#64748b', margin: '4px 0 0 0', fontFamily: 'monospace' }}>Neon PostgreSQL Secure Inmemory Pipeline Hub</p>
-      </header>
+    <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      
+      {/* GLOBAL STYLES FOR FULLCALENDAR MOBILE RESPONSIVENESS */}
+      <style jsx global>{`
+        .fc { max-width: 100%; background: #111827; border-radius: 12px; padding: 16px; border: 1px solid #1f2937; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .fc .fc-toolbar { flex-wrap: wrap; gap: 8px; }
+        .fc .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 700; color: #38bdf8; }
+        .fc .fc-button-primary { background-color: #1f2937 !important; border-color: #374151 !important; color: #e2e8f0 !important; text-transform: capitalize; font-size: 0.875rem; }
+        .fc .fc-button-primary:hover { background-color: #374151 !important; }
+        .fc .fc-button-active { background-color: #38bdf8 !important; border-color: #38bdf8 !important; color: #0f172a !important; }
+        .fc th { background-color: #1f2937; color: #94a3b8; font-weight: 600; font-size: 0.85rem; padding: 8px 0 !important; }
+        .fc-daygrid-calendar-body { background: #111827; }
+        @media (max-width: 768px) {
+          .fc .fc-toolbar { flex-direction: column; align-items: stretch; text-align: center; }
+          .fc-toolbar-chunk { display: flex; justify-content: center; margin-bottom: 4px; }
+        }
+      `}</style>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '32px' }}>
+      {/* NAVIGATION BAR */}
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h1 style={{ fontSize: '20px', fontWeight: '800', margin: 0, background: 'linear-gradient(to right, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Workspace Intelligence
+          </h1>
+          <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Neon Cloud Engine</p>
+        </div>
         
-        {/* CONTROL SIDE PANEL */}
-        <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '20px' }}>
-          
-          <div style={{ marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px' }}>Option 1: Drop Document</h2>
-            <div style={{ border: '2px dashed #475569', borderRadius: '12px', padding: '24px', textAlign: 'center', position: 'relative', backgroundColor: '#0f172a' }}>
-              <input type="file" accept=".pdf" onChange={handleFileChange} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} disabled={loading} />
-              <p style={{ fontSize: '14px', margin: 0 }}>Select or Drag PDF Here</p>
-            </div>
+        {/* TRIGGER BUTTON */}
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 14px rgba(56, 189, 248, 0.3)' }}
+        >
+          <span>➕</span> Upload Document
+        </button>
+      </nav>
+
+      {/* MAIN CONTAINER */}
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
+        
+        {/* PROCESSING & STAGING NOTIFICATIONS */}
+        {loading && (
+          <div style={{ backgroundColor: '#1e1b4b', border: '1px solid #3730a3', borderRadius: '12px', padding: '16px', marginBottom: '24px', textAlign: 'center', color: '#a5b4fc', fontWeight: '600' }}>
+            ⚡ AI Pipeline active: Parsing document telemetry in cloud memory...
           </div>
+        )}
 
-          <form onSubmit={handleUrlSubmit} style={{ paddingTop: '20px', borderTop: '1px solid #334155' }}>
-            <h2 style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px' }}>Option 2: Paste Web Link</h2>
-            <input type="url" placeholder="https://example.com/schedule.pdf" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} disabled={loading} style={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '12px', padding: '12px', fontSize: '14px', color: '#fff', width: '100%', boxSizing: 'border-box', marginBottom: '10px' }} />
-            <button type="submit" style={{ backgroundColor: '#0284c7', color: '#fff', border: 'none', padding: '12px', borderRadius: '12px', width: '100%', fontWeight: '600', cursor: 'pointer' }}>Fetch & Extract</button>
-          </form>
-
-          {loading && <div style={{ textAlign: 'center', color: '#38bdf8', marginTop: '15px' }}>AI processing in cloud...</div>}
-
-          {/* STAGING INTERFACE */}
-          {stagedEvents.length > 0 && (
-            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #334155' }}>
-              <h3 style={{ color: '#fbbf24', fontSize: '14px', margin: '0 0 10px 0' }}>Detected by Gemini:</h3>
+        {stagedEvents.length > 0 && (
+          <div style={{ backgroundColor: '#1c1917', border: '1px solid #78350f', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+            <h3 style={{ color: '#fbbf24', fontSize: '16px', margin: '0 0 4px 0', fontWeight: '700' }}>Review Staged Deliverables</h3>
+            <p style={{ color: '#a8a29e', fontSize: '13px', margin: '0 0 16px 0' }}>Confirm the entries extracted by Gemini before committing them to Neon storage.</p>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
               {stagedEvents.map((ev, idx) => (
-                <div key={idx} style={{ backgroundColor: '#0f172a', padding: '15px', borderRadius: '12px', marginBottom: '10px', borderLeft: '4px solid #f59e0b' }}>
-                  <p style={{ margin: '0 0 5px 0', fontWeight: '700' }}>{ev.title}</p>
-                  <p style={{ margin: '0 0 5px 0', color: '#38bdf8', fontSize: '12px' }}>{new Date(ev.start).toLocaleString()}</p>
-                  {ev.description && <p style={{ margin: '0 0 10px 0', color: '#94a3b8', fontSize: '12px' }}>{ev.description}</p>}
-                  <button onClick={() => commitEvent(idx)} style={{ backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', width: '100%' }}>Approve & Save to Neon</button>
+                <div key={idx} style={{ backgroundColor: '#1c1917', border: '1px solid #44403c', padding: '16px', borderRadius: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: '700', color: '#fff' }}>{ev.title}</h4>
+                    <p style={{ margin: '0 0 8px 0', color: '#38bdf8', fontSize: '12px', fontWeight: '600' }}>📅 {new Date(ev.start).toLocaleString()}</p>
+                    {ev.description && <p style={{ margin: '0 0 16px 0', color: '#a8a29e', fontSize: '13px', lineHeight: '1.4' }}>{ev.description}</p>}
+                  </div>
+                  <button onClick={() => commitEvent(idx)} style={{ backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', width: '100%' }}>
+                    Approve Entry
+                  </button>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* CALENDAR VIEW */}
-        <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '20px' }}>
-          <FullCalendar plugins={[dayGridPlugin, interactionPlugin]} initialView="dayGridMonth" events={dbEvents} height="auto" eventColor="#0284c7" />
+        {/* CALENDAR BLOCK */}
+        <div style={{ width: '100%' }}>
+          <FullCalendar 
+            plugins={[dayGridPlugin, interactionPlugin]} 
+            initialView="dayGridMonth" 
+            events={dbEvents} 
+            height="auto" 
+            eventColor="#38bdf8"
+            eventTextColor="#090d16"
+            eventClassNames="custom-calendar-event"
+          />
         </div>
+      </main>
 
-      </div>
+      {/* OPTIONS OVERLAY MODAL */}
+      {isModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '24px', boxSizing: 'border-box', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#fff' }}>Ingest Schedule Document</h2>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer', padding: 0 }}>✕</button>
+            </div>
+
+            {/* METHOD A: LOCAL PDF */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em' }}>Option A: Upload File</label>
+              <div style={{ border: '2px dashed #374151', borderRadius: '12px', padding: '32px 16px', textAlign: 'center', position: 'relative', backgroundColor: '#1f2937', cursor: 'pointer', transition: 'border-color 0.2s' }}>
+                <input type="file" accept=".pdf" onChange={handleFileChange} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>📄</span>
+                <p style={{ fontSize: '14px', margin: 0, color: '#e2e8f0', fontWeight: '500' }}>Drop or click to select PDF</p>
+                <p style={{ fontSize: '11px', margin: '4px 0 0 0', color: '#64748b' }}>Maximum upload limit 10MB</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', textAlign: 'center', color: '#4b5563', fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', margin: '16px 0', letterSpacing: '0.05em' }}>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#1f2937' }}></div>
+              <span style={{ padding: '0 8px' }}>OR</span>
+              <div style={{ flex: 1, height: '1px', backgroundColor: '#1f2937' }}></div>
+            </div>
+
+            {/* METHOD B: WEB LINK */}
+            <form onSubmit={handleUrlSubmit}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em' }}>Option B: Remote Document Link</label>
+              <input 
+                type="url" 
+                placeholder="https://example.com/roster-manifest.pdf" 
+                value={urlInput} 
+                onChange={(e) => setUrlInput(e.target.value)}
+                style={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', fontSize: '14px', color: '#fff', width: '100%', boxSizing: 'border-box', marginBottom: '12px' }} 
+              />
+              <button type="submit" style={{ backgroundColor: '#1f2937', border: '1px solid #38bdf8', color: '#38bdf8', padding: '12px', borderRadius: '8px', width: '100%', fontWeight: '700', cursor: 'pointer' }}>
+                Stream via URL
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
