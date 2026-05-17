@@ -1,10 +1,10 @@
 import React from 'react';
 
 export default function Sidebar({ currentView, setCurrentView }) {
-const links = [
+  const links = [
     { id: 'combined', label: '🎛️ Master Hub (All)', color: '#38bdf8' },
     { id: 'liam', label: '👨 Liam\'s Life', color: '#10b981' },
-    { id: 'zoe', label: '🌸 Zoe\'s Schedule', color: '#f43f5e' }, // Added Zoe here!
+    { id: 'zoe', label: '😈 Zoe\'s Schedule', color: '#f43f5e' }, // Swapped to Devil icon
     { id: 'work', label: '💼 ATI Work', color: '#818cf8' },
     { id: 'family', label: '🏡 Family & Kids', color: '#f59e0b' }
   ];
