@@ -316,4 +316,60 @@ export default function Home() {
                     onClick={() => handleLearnAction('verified_kid')}
                     style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    {isLearning ? <div className="loading-spinner"></div> : "✅ Is Kid Related (Keep
+                    {isLearning ? <div className="loading-spinner"></div> : "✅ Is Kid Related (Keep & Return to Normal)"}
+                  </button>
+                  <button 
+                    disabled={isLearning}
+                    onClick={() => handleLearnAction('blocked')}
+                    style={{ flex: 1, backgroundColor: '#f43f5e', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  >
+                    {isLearning ? <div className="loading-spinner"></div> : "❌ Not Kid Related (Hide Completely)"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* BLOCK B: THE INTER-CATEGORY ROUTER TRANSFER */}
+            <div style={{ backgroundColor: '#1f2937', borderRadius: '10px', padding: '14px', border: '1px solid #374151', marginBottom: '16px' }}>
+              <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '700', display: 'block', marginBottom: '6px' }}>
+                🔀 Migrate/Assign Event Category
+              </label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <select 
+                  value={targetRoutingScope} 
+                  onChange={e => setTargetRoutingScope(e.target.value)} 
+                  style={{ flex: 2, backgroundColor: '#111827', border: '1px solid #374151', padding: '8px', color: '#fff', borderRadius: '6px', fontSize: '13px', outline: 'none' }}
+                >
+                  <option value="liam">Liam's Life</option>
+                  <option value="work">ATI Calendar</option>
+                  <option value="zoe">Zoe Calendar</option>
+                  <option value="kids-logs">Kids Related Logs</option>
+                  <option value="family">Kids Calendar</option>
+                </select>
+                <button 
+                  disabled={isRouting}
+                  onClick={handleRouteTransfer}
+                  style={{ flex: 1, backgroundColor: '#38bdf8', color: '#090d16', border: 'none', borderRadius: '6px', fontWeight: '800', fontSize: '12px', cursor: isRouting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {isRouting ? <div className="loading-spinner" style={{ borderTopColor: '#090d16' }}></div> : "Transfer Event"}
+                </button>
+              </div>
+            </div>
+            
+            <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', marginBottom: '6px', letterSpacing: '0.05em' }}>Item Custom Annotations</h4>
+            <textarea 
+              value={eventNotes}
+              onChange={e => setEventNotes(e.target.value)}
+              placeholder="Type notes or context additions directly into this calendar event record..."
+              style={{ width: '100%', height: '70px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => setSelectedEvent(null)} style={{ backgroundColor: '#374151', color: '#94a3b8', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={saveEventNotes} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Save Notes</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
