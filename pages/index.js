@@ -11,14 +11,14 @@ export default function Home() {
   const [dbEvents, setDbEvents] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Manual Entry Data States
+  // Manual Entry States
   const [manualTitle, setManualTitle] = useState("");
   const [manualStart, setManualStart] = useState("");
   const [manualEnd, setManualEnd] = useState("");
   const [manualDesc, setManualDesc] = useState("");
   const [manualChannel, setManualChannel] = useState("combined");
 
-  // Inspection & Notes States
+  // Inspection Modal States
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventNotes, setEventNotes] = useState("");
   const [generalNotes, setGeneralNotes] = useState("");
@@ -54,7 +54,7 @@ export default function Home() {
 
   const handleManualSubmit = async (e) => {
     e.preventDefault();
-    if (!manualTitle || !manualStart) return alert("An entry title and start time are minimum requirements.");
+    if (!manualTitle || !manualStart) return alert("Title and start time are required.");
     try {
       const res = await fetch(`${BACKEND_API}/api/events`, {
         method: 'POST',
@@ -72,7 +72,7 @@ export default function Home() {
         setIsModalOpen(false);
         fetchSavedEvents();
       }
-    } catch (err) { console.error("Failed writing explicit log event:", err); }
+    } catch (err) { console.error(err); }
   };
 
   const handleEventClick = async (info) => {
@@ -81,7 +81,8 @@ export default function Home() {
       title: info.event.title,
       start: info.event.start,
       end: info.event.end,
-      description: info.event.extendedProps.description || ""
+      description: info.event.extendedProps.description || "",
+      isUnverified: info.event.extendedProps.isUnverified || false
     };
     setSelectedEvent(eventObj);
     setEventNotes("");
@@ -90,7 +91,7 @@ export default function Home() {
       const res = await fetch(`${BACKEND_API}/api/events/${info.event.id}/notes`);
       const data = await res.json();
       setEventNotes(data.notes);
-    } catch (err) { console.error("Failed retrieving item notes metadata pipeline:", err); }
+    } catch (err) { console.error(err); }
   };
 
   const saveEventNotes = async () => {
@@ -102,7 +103,7 @@ export default function Home() {
         body: JSON.stringify({ notes: eventNotes })
       });
       setSelectedEvent(null);
-    } catch (err) { console.error("Failed writing updates into event annotations:", err); }
+    } catch (err) { console.error(err); }
   };
 
   const saveGeneralNotes = async (val) => {
@@ -113,27 +114,24 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: val })
       });
-    } catch (err) { console.error("Autosave scratchpad dropped transaction:", err); }
+    } catch (err) { console.error(err); }
   };
 
-  const handleBlockEvent = async () => {
+  const handleLearnAction = async (status) => {
     if (!selectedEvent) return;
-    if (confirm("Remove this event from view? The whole-word keyword filter will remember this choice.")) {
-      try {
-        const res = await fetch(`${BACKEND_API}/api/events/block`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ eventId: selectedEvent.id })
-        });
-        if (res.ok) {
-          setSelectedEvent(null);
-          fetchSavedEvents(); // Instant dashboard refresh
-        }
-      } catch (err) { console.error("Failed executing blocklist transaction:", err); }
-    }
+    try {
+      const res = await fetch(`${BACKEND_API}/api/events/learn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: selectedEvent.id, status })
+      });
+      if (res.ok) {
+        setSelectedEvent(null);
+        fetchSavedEvents();
+      }
+    } catch (err) { console.error(err); }
   };
 
-  // Timeline Reminder Filtering Algorithm (Calculates dynamically from data payload)
   const getReminders = (maxDays) => {
     const now = new Date();
     const limit = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
@@ -156,23 +154,20 @@ export default function Home() {
         .fc .fc-button-active { background-color: #38bdf8 !important; color: #090d16 !important; border-color: #38bdf8 !important; }
       `}</style>
 
-      {/* GLOBAL TOP NAV CONTROLS */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937' }}>
         <div>
           <h2 style={{ fontSize: '15px', fontWeight: '800', margin: 0 }}>Unified Intelligence Command</h2>
           <p style={{ fontSize: '10px', color: '#64748b', margin: 0 }}>Viewing Scope: {currentCalendar}</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', transition: 'opacity 0.2s' }}>
+        <button onClick={() => setIsModalOpen(true)} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
           ➕ Log Entry / Ingest Doc
         </button>
       </nav>
 
-      {/* CORE WORKSPACE CONSOLE */}
       <div style={{ display: 'flex', flex: 1 }}>
         <Sidebar currentView={currentCalendar} setCurrentView={setCurrentCalendar} />
         
         <main style={{ flex: 1, padding: '24px', display: 'flex', gap: '24px' }}>
-          {/* THE MASTER TARGET INTERACTIVE CALENDAR CONTAINER */}
           <div style={{ flex: 3 }}>
             <FullCalendar 
               plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]} 
@@ -182,8 +177,22 @@ export default function Home() {
               eventClick={handleEventClick}
               eventContent={(info) => {
                 const color = info.event.extendedProps.color || info.event.backgroundColor;
+                const isUnverified = info.event.extendedProps.isUnverified;
                 return (
-                  <div style={{ backgroundColor: color || '#38bdf8', color: '#090d16', padding: '3px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: '700', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ 
+                    backgroundColor: color || '#38bdf8', 
+                    color: isUnverified ? '#9ca3af' : '#090d16', 
+                    padding: '3px 6px', 
+                    borderRadius: '4px', 
+                    fontSize: '11px', 
+                    fontWeight: '700', 
+                    width: '100%', 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis', 
+                    whiteSpace: 'nowrap',
+                    opacity: isUnverified ? 0.55 : 1,
+                    border: isUnverified ? '1px dashed #4b5563' : 'none'
+                  }}>
                     {info.event.title}
                   </div>
                 );
@@ -191,37 +200,18 @@ export default function Home() {
             />
           </div>
 
-          {/* DUAL RADAR SIDEBAR PANEL: REMINDERS & SCRATCHPAD */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minWidth: '310px', maxWidth: '350px' }}>
-            
-            {/* RADAR TIMELINE COMPONENT */}
             <div style={{ backgroundColor: '#111827', borderRadius: '12px', border: '1px solid #1f2937', padding: '16px', maxHeigh: '350px', overflowY: 'auto' }}>
               <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', margin: '0 0 12px 0', letterSpacing: '0.05em' }}>🚨 Radar Reminders</h3>
-              
               <h4 style={{ fontSize: '11px', color: '#f43f5e', margin: '8px 0 6px 0', textTransform: 'uppercase' }}>Next 24 Hours</h4>
-              {getReminders(1).length === 0 ? (
-                <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 12px 0' }}>Clear horizon</p>
-              ) : getReminders(1).map(e => (
-                <div key={e.id} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #1f2937', color: '#f8fafc' }}>• {e.title}</div>
-              ))}
-              
+              {getReminders(1).length === 0 ? <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 12px 0' }}>Clear horizon</p> : getReminders(1).map(e => <div key={e.id} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #1f2937', color: '#f8fafc' }}>• {e.title}</div>)}
               <h4 style={{ fontSize: '11px', color: '#f59e0b', margin: '14px 0 6px 0', textTransform: 'uppercase' }}>This Week</h4>
-              {getReminders(7).length === 0 ? (
-                <p style={{ fontSize: '12px', color: '#475569', margin: '0' }}>No active schedule tracks</p>
-              ) : getReminders(7).map(e => (
-                <div key={e.id} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #1f2937', color: '#cbd5e1' }}>• {e.title}</div>
-              ))}
+              {getReminders(7).length === 0 ? <p style={{ fontSize: '12px', color: '#475569', margin: '0' }}>No active tracks</p> : getReminders(7).map(e => <div key={e.id} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #1f2937', color: '#cbd5e1' }}>• {e.title}</div>)}
             </div>
 
-            {/* INTEGRATED GLOBAL NOTEPAD */}
             <div style={{ backgroundColor: '#111827', borderRadius: '12px', border: '1px solid #1f2937', padding: '16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
               <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', margin: '0 0 12px 0', letterSpacing: '0.05em' }}>📝 Global Scratchpad</h3>
-              <textarea 
-                value={generalNotes} 
-                onChange={(e) => saveGeneralNotes(e.target.value)}
-                placeholder="Drop notes, tasks, or numbers here. Automatically saves to database cluster storage..."
-                style={{ flex: 1, width: '100%', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', resize: 'none', lineHeight: '1.5', outline: 'none' }}
-              />
+              <textarea value={generalNotes} onChange={(e) => saveGeneralNotes(e.target.value)} placeholder="Drop notes here..." style={{ flex: 1, width: '100%', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', resize: 'none', outline: 'none' }} />
             </div>
           </div>
         </main>
@@ -237,22 +227,18 @@ export default function Home() {
             </div>
             <form onSubmit={handleManualSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input type="text" placeholder="Entry Title" value={manualTitle} onChange={e => setManualTitle(e.target.value)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', color: '#fff', borderRadius: '6px', fontSize: '14px', outline: 'none' }} />
-              
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '4px' }}>START TIME</label>
                   <input type="datetime-local" value={manualStart} onChange={e => setManualStart(e.target.value)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', color: '#fff', borderRadius: '6px', width: '100%', fontSize: '13px' }} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '4px' }}>END TIME (OPTIONAL)</label>
+                  <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '4px' }}>END TIME</label>
                   <input type="datetime-local" value={manualEnd} onChange={e => setManualEnd(e.target.value)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', color: '#fff', borderRadius: '6px', width: '100%', fontSize: '13px' }} />
                 </div>
               </div>
-
-              <textarea placeholder="Enter description context clues..." value={manualDesc} onChange={e => setManualDesc(e.target.value)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', color: '#fff', borderRadius: '6px', height: '70px', fontSize: '13px', resize: 'none', outline: 'none' }} />
-              
+              <textarea placeholder="Description context..." value={manualDesc} onChange={e => setManualDesc(e.target.value)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', color: '#fff', borderRadius: '6px', height: '70px', fontSize: '13px', resize: 'none', outline: 'none' }} />
               <div>
-                <label style={{ fontSize: '10px', color: '#64748b', display: 'block', marginBottom: '4px' }}>ASSIGN TO CHANNEL CHANNEL</label>
                 <select value={manualChannel} onChange={e => setManualChannel(e.target.value)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', color: '#fff', borderRadius: '6px', width: '100%', fontSize: '14px' }}>
                   <option value="combined">Master Hub (General)</option>
                   <option value="liam">Liam's Life</option>
@@ -262,42 +248,52 @@ export default function Home() {
                   <option value="family">Family Track</option>
                 </select>
               </div>
-
-              <button type="submit" style={{ backgroundColor: '#38bdf8', color: '#090d16', padding: '12px', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '14px', marginTop: '8px' }}>Commit Record</button>
+              <button type="submit" style={{ backgroundColor: '#38bdf8', color: '#090d16', padding: '12px', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}>Commit Record</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* USER INTERFACE MODAL: ITEM DETAIL NOTES INSPECTOR */}
+      {/* USER INTERFACE MODAL: DETAILS & LEARNING ENGINE PILLARS */}
       {selectedEvent && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2,6,23,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '24px' }}>
+          <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '520px', padding: '24px' }}>
             <h3 style={{ margin: '0 0 6px 0', color: '#fff', fontSize: '16px', fontWeight: '700' }}>{selectedEvent.title}</h3>
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 20px 0', backgroundColor: '#1f2937', padding: '12px', borderRadius: '8px', border: '1px solid #374151', lineHeight: '1.4' }}>
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 16px 0', backgroundColor: '#1f2937', padding: '12px', borderRadius: '8px', border: '1px solid #374151', lineHeight: '1.4' }}>
               {selectedEvent.description || "No descriptions attached to this stream record."}
             </p>
+
+            {/* LEARNING LOGIC INTERACTIVE HEADER SECTION */}
+            {selectedEvent.isUnverified && (
+              <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px dashed #f59e0b', borderRadius: '8px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700' }}>❓ Unverified Stream Match Detected:</span>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => handleLearnAction('verified_kid')}
+                    style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    ✅ Is Kid Related (Keep & Approve)
+                  </button>
+                  <button 
+                    onClick={() => handleLearnAction('blocked')}
+                    style={{ flex: 1, backgroundColor: '#f43f5e', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    ❌ Not Kid Related (Hide Event)
+                  </button>
+                </div>
+              </div>
+            )}
             
             <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', marginBottom: '6px', letterSpacing: '0.05em' }}>Item Custom Annotations</h4>
             <textarea 
               value={eventNotes}
               onChange={e => setEventNotes(e.target.value)}
               placeholder="Type notes or context additions directly into this calendar event record..."
-              style={{ width: '100%', height: '110px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none', lineHeight: '1.4' }}
+              style={{ width: '100%', height: '90px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button 
-                onClick={handleBlockEvent}
-                style={{ backgroundColor: 'transparent', border: '1px solid #f43f5e', color: '#f43f5e', padding: '10px 14px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
-                onMouseEnter={(e) => { e.target.style.backgroundColor = '#f43f5e'; e.target.style.color = '#fff'; }}
-                onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#f43f5e'; }}
-              >
-                🗑️ Not Kid Related (Remove)
-              </button>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => setSelectedEvent(null)} style={{ backgroundColor: '#374151', color: '#94a3b8', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
-                <button onClick={saveEventNotes} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Save Notes</button>
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button onClick={() => setSelectedEvent(null)} style={{ backgroundColor: '#374151', color: '#94a3b8', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={saveEventNotes} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Save Notes</button>
             </div>
           </div>
         </div>
