@@ -114,6 +114,9 @@ export default function Home() {
         .fc th { background-color: #1f2937; color: #94a3b8; font-weight: 700; font-size: 0.85rem; padding: 12px 0 !important; border: 1px solid #374151; }
         .fc td { border: 1px solid #1f2937 !important; }
         .fc-list-day-cushion { background-color: #1f2937 !important; }
+        /* Style fixes to ensure text colors read cleanly inside full-colored event bars */
+        .fc-v-event .fc-event-title, .fc-h-event .fc-event-title { font-weight: 600 !important; color: #090d16 !important; }
+        .fc-daygrid-event { border: none !important; padding: 2px 4px !important; margin: 2px 0 !important; border-radius: 4px !important; }
         @media (max-width: 900px) {
           .main-layout { flex-direction: column; }
           .sidebar-pane { width: 100% !important; border-right: none !important; border-bottom: 1px solid #1f2937; }
@@ -123,7 +126,8 @@ export default function Home() {
       {/* TOP BRAND NAVIGATION */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <img src="/logo.jpg" alt="Logo" style={{ height: '48px', width: 'auto', borderRadius: '6px' }} onError={(e) => e.target.style.display='none'} />
+          {/* Linked up your custom uploaded brand asset file */}
+          <img src="/image_28ef8d.jpg" alt="Liam's Life" style={{ height: '48px', width: 'auto', borderRadius: '6px' }} />
           <div>
             <h2 style={{ fontSize: '15px', fontWeight: '800', margin: 0, color: '#fff' }}>Unified Intelligence</h2>
             <p style={{ fontSize: '10px', color: '#64748b', margin: 0, textTransform: 'uppercase' }}>Active Channel: {currentCalendar}</p>
@@ -165,8 +169,26 @@ export default function Home() {
             initialView="dayGridMonth" 
             events={dbEvents} 
             height="auto" 
-            eventColor="#38bdf8"
             eventTextColor="#090d16"
+            eventContent={(eventInfo) => {
+              // Custom injection hook: dynamically maps specific event colors passed by our server streams
+              const customColor = eventInfo.event.extendedProps.color || eventInfo.event.backgroundColor;
+              return (
+                <div style={{ 
+                  backgroundColor: customColor || '#38bdf8', 
+                  color: '#090d16', 
+                  padding: '3px 6px', 
+                  borderRadius: '4px', 
+                  fontSize: '12px', 
+                  fontWeight: '700',
+                  width: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {eventInfo.event.title}
+                </div>
+              );
+            }}
           />
         </main>
       </div>
