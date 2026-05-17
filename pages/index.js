@@ -116,6 +116,23 @@ export default function Home() {
     } catch (err) { console.error("Autosave scratchpad dropped transaction:", err); }
   };
 
+  const handleBlockEvent = async () => {
+    if (!selectedEvent) return;
+    if (confirm("Remove this event from view? The whole-word keyword filter will remember this choice.")) {
+      try {
+        const res = await fetch(`${BACKEND_API}/api/events/block`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventId: selectedEvent.id })
+        });
+        if (res.ok) {
+          setSelectedEvent(null);
+          fetchSavedEvents(); // Instant dashboard refresh
+        }
+      } catch (err) { console.error("Failed executing blocklist transaction:", err); }
+    }
+  };
+
   // Timeline Reminder Filtering Algorithm (Calculates dynamically from data payload)
   const getReminders = (maxDays) => {
     const now = new Date();
@@ -268,9 +285,19 @@ export default function Home() {
               placeholder="Type notes or context additions directly into this calendar event record..."
               style={{ width: '100%', height: '110px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none', lineHeight: '1.4' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setSelectedEvent(null)} style={{ backgroundColor: '#374151', color: '#94a3b8', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={saveEventNotes} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Save Notes</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button 
+                onClick={handleBlockEvent}
+                style={{ backgroundColor: 'transparent', border: '1px solid #f43f5e', color: '#f43f5e', padding: '10px 14px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={(e) => { e.target.style.backgroundColor = '#f43f5e'; e.target.style.color = '#fff'; }}
+                onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#f43f5e'; }}
+              >
+                🗑️ Not Kid Related (Remove)
+              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setSelectedEvent(null)} style={{ backgroundColor: '#374151', color: '#94a3b8', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
+                <button onClick={saveEventNotes} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Save Notes</button>
+              </div>
             </div>
           </div>
         </div>
