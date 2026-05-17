@@ -127,7 +127,7 @@ export default function Home() {
       });
       if (res.ok) {
         setSelectedEvent(null);
-        fetchSavedEvents();
+        fetchSavedEvents(); // Re-fetch down synchronized tracks
       }
     } catch (err) { console.error(err); }
   };
