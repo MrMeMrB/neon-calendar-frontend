@@ -10,7 +10,8 @@ export default function Home() {
   const [currentCalendar, setCurrentCalendar] = useState('combined'); 
   const [dbEvents, setDbEvents] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLearning, setIsLearning] = useState(false); // Spinner state
+  const [isLearning, setIsLearning] = useState(false);
+  const [isRouting, setIsRouting] = useState(false);
 
   // Manual Entry States
   const [manualTitle, setManualTitle] = useState("");
@@ -23,6 +24,7 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventNotes, setEventNotes] = useState("");
   const [generalNotes, setGeneralNotes] = useState("");
+  const [targetRoutingScope, setTargetRoutingScope] = useState("liam");
 
   const BACKEND_API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
@@ -83,7 +85,8 @@ export default function Home() {
       start: info.event.start,
       end: info.event.end,
       description: info.event.extendedProps.description || "",
-      isUnverified: info.event.extendedProps.isUnverified || false
+      isUnverified: info.event.extendedProps.isUnverified || false,
+      isExternal: info.event.extendedProps.isExternal ?? true
     };
     setSelectedEvent(eventObj);
     setEventNotes("");
@@ -120,27 +123,11 @@ export default function Home() {
 
   const handleLearnAction = async (status) => {
     if (!selectedEvent) return;
-    
     setIsLearning(true);
 
-    // OPTIMISTIC UPDATE: Instantly update local UI array state so layout feels snappy
-    setDbEvents(prevEvents => {
-      if (status === 'blocked') {
-        return prevEvents.filter(ev => ev.id !== selectedEvent.id);
-      } else if (status === 'verified_kid') {
-        return prevEvents.map(ev => {
-          if (ev.id === selectedEvent.id) {
-            return {
-              ...ev,
-              title: ev.title.replace('❓ ', ''), // Remove question emoji immediately
-              isUnverified: false,
-              color: '#f43f5e' // Snap back to bright Zoe pink
-            };
-          }
-          return ev;
-        });
-      }
-      return prevEvents;
+    setDbEvents(prev => {
+      if (status === 'blocked') return prev.filter(ev => ev.id !== selectedEvent.id);
+      return prev.map(ev => ev.id === selectedEvent.id ? { ...ev, title: ev.title.replace('❓ ', ''), isUnverified: false, color: '#f43f5e' } : ev);
     });
 
     try {
@@ -149,17 +136,40 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: selectedEvent.id, status })
       });
-      
       if (res.ok) {
         setSelectedEvent(null);
-        // Silently sync the actual cache data from backend in background
         fetchSavedEvents();
       }
-    } catch (err) { 
-      console.error(err); 
-    } finally {
-      setIsLearning(false);
-    }
+    } catch (err) { console.error(err); } finally { setIsLearning(false); }
+  };
+
+  // EXECUTE INTER-CATEGORY ROUTING
+  const handleRouteTransfer = async () => {
+    if (!selectedEvent) return;
+    setIsRouting(true);
+
+    // Optimistic clean: pull out of screen view instantly if looking at single views
+    setDbEvents(prev => prev.filter(ev => ev.id !== selectedEvent.id));
+
+    try {
+      const res = await fetch(`${BACKEND_API}/api/events/route`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: selectedEvent.id,
+          title: selectedEvent.title,
+          start: selectedEvent.start,
+          end: selectedEvent.end,
+          description: selectedEvent.description,
+          targetCalendar: targetRoutingScope,
+          isExternal: selectedEvent.isExternal
+        })
+      });
+      if (res.ok) {
+        setSelectedEvent(null);
+        fetchSavedEvents();
+      }
+    } catch (err) { console.error(err); } finally { setIsRouting(false); }
   };
 
   const getReminders = (maxDays) => {
@@ -183,19 +193,8 @@ export default function Home() {
         .fc .fc-button-primary:hover { background-color: #374151 !important; color: #fff !important; }
         .fc .fc-button-active { background-color: #38bdf8 !important; color: #090d16 !important; border-color: #38bdf8 !important; }
         
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .loading-spinner {
-          width: 14px;
-          height: 14px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-radius: 50%;
-          border-top-color: #fff;
-          animation: spin 0.8s linear infinite;
-          display: inline-block;
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 0.8s linear infinite; display: inline-block; }
       `}</style>
 
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937' }}>
@@ -261,7 +260,7 @@ export default function Home() {
         </main>
       </div>
 
-      {/* USER INTERFACE MODAL: ADD MANUAL ENTRIES */}
+      {/* MODAL: CREATE MANUAL EVENT ENTRIES */}
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2,6,23,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '460px', padding: '24px' }}>
@@ -286,10 +285,10 @@ export default function Home() {
                 <select value={manualChannel} onChange={e => setManualChannel(e.target.value)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', padding: '10px', color: '#fff', borderRadius: '6px', width: '100%', fontSize: '14px' }}>
                   <option value="combined">Master Hub (General)</option>
                   <option value="liam">Liam's Life</option>
-                  <option value="work">ATI Work Logs</option>
+                  <option value="work">ATI Calendar</option>
                   <option value="zoe">Zoe Calendar</option>
-                  <option value="kids-logs">🧬 Kid Related Logs</option>
-                  <option value="family">Family Track</option>
+                  <option value="kids-logs">Kids Related Logs</option>
+                  <option value="family">Kids Calendar</option>
                 </select>
               </div>
               <button type="submit" style={{ backgroundColor: '#38bdf8', color: '#090d16', padding: '12px', border: 'none', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}>Commit Record</button>
@@ -298,7 +297,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* USER INTERFACE MODAL: DETAILS & LEARNING ENGINE PILLARS */}
+      {/* INSPECTION MODAL WITH CATEGORY ROUTING */}
       {selectedEvent && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2,6,23,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '520px', padding: '24px' }}>
@@ -307,7 +306,7 @@ export default function Home() {
               {selectedEvent.description || "No descriptions attached to this stream record."}
             </p>
 
-            {/* LEARNING LOGIC INTERACTIVE HEADER SECTION */}
+            {/* LIVE MACHINE LEARNING SUB-BAR */}
             {selectedEvent.isUnverified && (
               <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px dashed #f59e0b', borderRadius: '8px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700' }}>❓ Unverified Stream Match Detected:</span>
@@ -329,13 +328,40 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* INTER-CATEGORY ROUTING ROUTER WIDGET */}
+            <div style={{ backgroundColor: '#1f2937', borderRadius: '10px', padding: '14px', border: '1px solid #374151', marginBottom: '16px' }}>
+              <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '700', display: 'block', marginBottom: '6px' }}>
+                🔀 Migrate/Assign Event Category
+              </label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <select 
+                  value={targetRoutingScope} 
+                  onChange={e => setTargetRoutingScope(e.target.value)} 
+                  style={{ flex: 2, backgroundColor: '#111827', border: '1px solid #374151', padding: '8px', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
+                >
+                  <option value="liam">Liam's Life</option>
+                  <option value="work">ATI Calendar</option>
+                  <option value="zoe">Zoe Calendar</option>
+                  <option value="kids-logs">Kids Related Logs</option>
+                  <option value="family">Kids Calendar</option>
+                </select>
+                <button 
+                  disabled={isRouting}
+                  onClick={handleRouteTransfer}
+                  style={{ flex: 1, backgroundColor: '#38bdf8', color: '#090d16', border: 'none', borderRadius: '6px', fontWeight: '800', fontSize: '12px', cursor: isRouting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {isRouting ? <div className="loading-spinner" style={{ borderTopColor: '#090d16' }}></div> : "Transfer Event"}
+                </button>
+              </div>
+            </div>
             
             <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', marginBottom: '6px', letterSpacing: '0.05em' }}>Item Custom Annotations</h4>
             <textarea 
               value={eventNotes}
               onChange={e => setEventNotes(e.target.value)}
               placeholder="Type notes or context additions directly into this calendar event record..."
-              style={{ width: '100%', height: '90px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none' }}
+              style={{ width: '100%', height: '70px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none' }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button onClick={() => setSelectedEvent(null)} style={{ backgroundColor: '#374151', color: '#94a3b8', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
