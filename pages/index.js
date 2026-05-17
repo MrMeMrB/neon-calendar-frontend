@@ -10,7 +10,8 @@ export default function Home() {
   const [currentCalendar, setCurrentCalendar] = useState('combined'); 
   const [dbEvents, setDbEvents] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+  const [isLearning, setIsLearning] = useState(false); // Spinner state
+
   // Manual Entry States
   const [manualTitle, setManualTitle] = useState("");
   const [manualStart, setManualStart] = useState("");
@@ -119,17 +120,46 @@ export default function Home() {
 
   const handleLearnAction = async (status) => {
     if (!selectedEvent) return;
+    
+    setIsLearning(true);
+
+    // OPTIMISTIC UPDATE: Instantly update local UI array state so layout feels snappy
+    setDbEvents(prevEvents => {
+      if (status === 'blocked') {
+        return prevEvents.filter(ev => ev.id !== selectedEvent.id);
+      } else if (status === 'verified_kid') {
+        return prevEvents.map(ev => {
+          if (ev.id === selectedEvent.id) {
+            return {
+              ...ev,
+              title: ev.title.replace('❓ ', ''), // Remove question emoji immediately
+              isUnverified: false,
+              color: '#f43f5e' // Snap back to bright Zoe pink
+            };
+          }
+          return ev;
+        });
+      }
+      return prevEvents;
+    });
+
     try {
       const res = await fetch(`${BACKEND_API}/api/events/learn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ eventId: selectedEvent.id, status })
       });
+      
       if (res.ok) {
         setSelectedEvent(null);
-        fetchSavedEvents(); // Re-fetch down synchronized tracks
+        // Silently sync the actual cache data from backend in background
+        fetchSavedEvents();
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error(err); 
+    } finally {
+      setIsLearning(false);
+    }
   };
 
   const getReminders = (maxDays) => {
@@ -152,6 +182,20 @@ export default function Home() {
         .fc .fc-button-primary { background-color: #1f2937 !important; border: 1px solid #374151 !important; color: #94a3b8 !important; }
         .fc .fc-button-primary:hover { background-color: #374151 !important; color: #fff !important; }
         .fc .fc-button-active { background-color: #38bdf8 !important; color: #090d16 !important; border-color: #38bdf8 !important; }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .loading-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-radius: 50%;
+          border-top-color: #fff;
+          animation: spin 0.8s linear infinite;
+          display: inline-block;
+        }
       `}</style>
 
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937' }}>
@@ -201,7 +245,7 @@ export default function Home() {
           </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', minWidth: '310px', maxWidth: '350px' }}>
-            <div style={{ backgroundColor: '#111827', borderRadius: '12px', border: '1px solid #1f2937', padding: '16px', maxHeigh: '350px', overflowY: 'auto' }}>
+            <div style={{ backgroundColor: '#111827', borderRadius: '12px', border: '1px solid #1f2937', padding: '16px', maxHeight: '350px', overflowY: 'auto' }}>
               <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', margin: '0 0 12px 0', letterSpacing: '0.05em' }}>🚨 Radar Reminders</h3>
               <h4 style={{ fontSize: '11px', color: '#f43f5e', margin: '8px 0 6px 0', textTransform: 'uppercase' }}>Next 24 Hours</h4>
               {getReminders(1).length === 0 ? <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 12px 0' }}>Clear horizon</p> : getReminders(1).map(e => <div key={e.id} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #1f2937', color: '#f8fafc' }}>• {e.title}</div>)}
@@ -269,16 +313,18 @@ export default function Home() {
                 <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700' }}>❓ Unverified Stream Match Detected:</span>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button 
+                    disabled={isLearning}
                     onClick={() => handleLearnAction('verified_kid')}
-                    style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+                    style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    ✅ Is Kid Related (Keep & Approve)
+                    {isLearning ? <div className="loading-spinner"></div> : "✅ Is Kid Related (Keep)"}
                   </button>
                   <button 
+                    disabled={isLearning}
                     onClick={() => handleLearnAction('blocked')}
-                    style={{ flex: 1, backgroundColor: '#f43f5e', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+                    style={{ flex: 1, backgroundColor: '#f43f5e', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    ❌ Not Kid Related (Hide Event)
+                    {isLearning ? <div className="loading-spinner"></div> : "❌ Not Kid Related (Hide)"}
                   </button>
                 </div>
               </div>
