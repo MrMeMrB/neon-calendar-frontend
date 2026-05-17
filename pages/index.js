@@ -125,6 +125,7 @@ export default function Home() {
     if (!selectedEvent) return;
     setIsLearning(true);
 
+    // Optimistic fast-update for triage
     setDbEvents(prev => {
       if (status === 'blocked') return prev.filter(ev => ev.id !== selectedEvent.id);
       return prev.map(ev => ev.id === selectedEvent.id ? { ...ev, title: ev.title.replace('❓ ', ''), isUnverified: false, color: '#f43f5e' } : ev);
@@ -143,12 +144,11 @@ export default function Home() {
     } catch (err) { console.error(err); } finally { setIsLearning(false); }
   };
 
-  // EXECUTE INTER-CATEGORY ROUTING
   const handleRouteTransfer = async () => {
     if (!selectedEvent) return;
     setIsRouting(true);
 
-    // Optimistic clean: pull out of screen view instantly if looking at single views
+    // Optimistic hide on current active layout track
     setDbEvents(prev => prev.filter(ev => ev.id !== selectedEvent.id));
 
     try {
@@ -260,7 +260,7 @@ export default function Home() {
         </main>
       </div>
 
-      {/* MODAL: CREATE MANUAL EVENT ENTRIES */}
+      {/* MODAL: MANUAL CREATION BLOCK */}
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2,6,23,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '460px', padding: '24px' }}>
@@ -297,7 +297,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* INSPECTION MODAL WITH CATEGORY ROUTING */}
+      {/* INSPECTION MODAL: RESTORED TRIAGE & ROUTING BAR SIDE-BY-SIDE */}
       {selectedEvent && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2,6,23,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '520px', padding: '24px' }}>
@@ -306,7 +306,7 @@ export default function Home() {
               {selectedEvent.description || "No descriptions attached to this stream record."}
             </p>
 
-            {/* LIVE MACHINE LEARNING SUB-BAR */}
+            {/* BLOCK A: THE RESTORED TRIAGE PIPELINE */}
             {selectedEvent.isUnverified && (
               <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px dashed #f59e0b', borderRadius: '8px', padding: '12px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700' }}>❓ Unverified Stream Match Detected:</span>
@@ -316,60 +316,4 @@ export default function Home() {
                     onClick={() => handleLearnAction('verified_kid')}
                     style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    {isLearning ? <div className="loading-spinner"></div> : "✅ Is Kid Related (Keep)"}
-                  </button>
-                  <button 
-                    disabled={isLearning}
-                    onClick={() => handleLearnAction('blocked')}
-                    style={{ flex: 1, backgroundColor: '#f43f5e', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                  >
-                    {isLearning ? <div className="loading-spinner"></div> : "❌ Not Kid Related (Hide)"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* INTER-CATEGORY ROUTING ROUTER WIDGET */}
-            <div style={{ backgroundColor: '#1f2937', borderRadius: '10px', padding: '14px', border: '1px solid #374151', marginBottom: '16px' }}>
-              <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#94a3b8', fontWeight: '700', display: 'block', marginBottom: '6px' }}>
-                🔀 Migrate/Assign Event Category
-              </label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <select 
-                  value={targetRoutingScope} 
-                  onChange={e => setTargetRoutingScope(e.target.value)} 
-                  style={{ flex: 2, backgroundColor: '#111827', border: '1px solid #374151', padding: '8px', color: '#fff', borderRadius: '6px', fontSize: '13px' }}
-                >
-                  <option value="liam">Liam's Life</option>
-                  <option value="work">ATI Calendar</option>
-                  <option value="zoe">Zoe Calendar</option>
-                  <option value="kids-logs">Kids Related Logs</option>
-                  <option value="family">Kids Calendar</option>
-                </select>
-                <button 
-                  disabled={isRouting}
-                  onClick={handleRouteTransfer}
-                  style={{ flex: 1, backgroundColor: '#38bdf8', color: '#090d16', border: 'none', borderRadius: '6px', fontWeight: '800', fontSize: '12px', cursor: isRouting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  {isRouting ? <div className="loading-spinner" style={{ borderTopColor: '#090d16' }}></div> : "Transfer Event"}
-                </button>
-              </div>
-            </div>
-            
-            <h4 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', marginBottom: '6px', letterSpacing: '0.05em' }}>Item Custom Annotations</h4>
-            <textarea 
-              value={eventNotes}
-              onChange={e => setEventNotes(e.target.value)}
-              placeholder="Type notes or context additions directly into this calendar event record..."
-              style={{ width: '100%', height: '70px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setSelectedEvent(null)} style={{ backgroundColor: '#374151', color: '#94a3b8', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={saveEventNotes} style={{ backgroundColor: '#38bdf8', color: '#090d16', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}>Save Notes</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                    {isLearning ? <div className="loading-spinner"></div> : "✅ Is Kid Related (Keep
