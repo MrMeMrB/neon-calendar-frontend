@@ -106,16 +106,25 @@ export default function Home() {
         @media (max-width: 768px) {
           .fc .fc-toolbar { flex-direction: column; align-items: stretch; text-align: center; }
           .fc-toolbar-chunk { display: flex; justify-content: center; margin-bottom: 4px; }
+          .brand-subtitle { display: none; }
         }
       `}</style>
 
-      {/* NAVIGATION BAR */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h1 style={{ fontSize: '20px', fontWeight: '800', margin: 0, background: 'linear-gradient(to right, #38bdf8, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Workspace Intelligence
-          </h1>
-          <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0 0', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Neon Cloud Engine</p>
+      {/* BRANDED NAVIGATION BAR */}
+      <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', backgroundColor: '#111827', borderBottom: '1px solid #1f2937', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <img 
+            src="/logo.jpg" 
+            alt="Workspace Logo" 
+            style={{ height: '54px', width: 'auto', borderRadius: '8px', objectFit: 'contain' }} 
+            onError={(e) => {
+              e.target.style.display = 'none';
+            }}
+          />
+          <div className="brand-subtitle">
+            <h2 style={{ fontSize: '14px', fontWeight: '800', margin: 0, color: '#f8fafc', letterSpacing: '0.03em' }}>Workspace Control</h2>
+            <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0 0', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Neon Storage Pipeline</p>
+          </div>
         </div>
         
         {/* TRIGGER BUTTON */}
@@ -176,7 +185,7 @@ export default function Home() {
       {/* OPTIONS OVERLAY MODAL */}
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', zIndex: 9999 }}>
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '24px', boxSizing: 'border-box', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
+          <div style={{ backgroundColor: '#111827', isModalOpen, border: '1px solid #1f2937', borderRadius: '16px', width: '100%', maxWidth: '480px', padding: '24px', boxSizing: 'border-box', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: '#fff' }}>Ingest Schedule Document</h2>
