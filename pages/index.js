@@ -5,7 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
-// CRITICAL: Point this to your live Render backend URL when you deploy
+// CHANGE THIS: Replace with your live Render backend URL when you deploy
 const BACKEND_API = "http://localhost:5001"; 
 
 function App() {
@@ -16,7 +16,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
   
-  // Modal Form Tracking
+  // Modal State Machines
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('');
@@ -45,7 +45,7 @@ function App() {
       const notesData = await notesRes.json();
       setNotes(notesData.content || '');
     } catch (err) {
-      console.error("Data tracking node dropped connection:", err);
+      console.error("Data tracking link dropped:", err);
     } finally {
       setIsLoading(false);
     }
@@ -62,9 +62,11 @@ function App() {
       if (res.ok) {
         await fetchAllData();
         alert('All subscription streams successfully mapped and saved!');
+      } else {
+        alert('Data fetched, but parse engine threw an error. Check server logs.');
       }
     } catch (err) {
-      alert('External sync routine timed out.');
+      alert('External connection line timeout.');
     } finally {
       setIsSyncing(false);
     }
@@ -95,7 +97,7 @@ function App() {
   };
 
   const handleDeleteEvent = async (id) => {
-    if (!window.confirm("Are you sure you want to permanently delete this event block?")) return;
+    if (!window.confirm("Are you sure you want to permanently delete this event block from the database?")) return;
     try {
       const res = await fetch(`${BACKEND_API}/api/events/${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -137,35 +139,35 @@ function App() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100vw', justifyContent: 'center', alignItems: 'center', background: '#090d16' }}>
-        <div style={{ width: '50px', height: '50px', border: '4px solid #1e293b', borderTopColor: '#38bdf8', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', justifyContent: 'center', alignItems: 'center', background: '#070a12' }}>
+        <div style={{ width: '60px', height: '60px', border: '4px solid #111b2d', borderTopColor: '#00f0ff', borderRadius: '50%', animation: 'spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite' }} />
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#090d16', color: '#f8fafc', fontFamily: 'system-ui, sans-serif', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#070a12', color: '#f1f5f9', fontFamily: 'system-ui, -apple-system, sans-serif', boxSizing: 'border-box' }}>
       
-      {/* SIDEBAR NAVIGATION CONTROL PANEL */}
-      <div style={{ width: isMobile ? '100%' : '360px', background: '#111827', borderRight: '1px solid #22314d', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', boxSizing: 'border-box' }}>
+      {/* SIDEBAR DASHBOARD DISPLAY */}
+      <div style={{ width: isMobile ? '100%' : '380px', background: '#0b1325', borderRight: '1px solid #1a2942', padding: '28px', display: 'flex', flexDirection: 'column', gap: '28px', boxSizing: 'border-box' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: '800', margin: 0, color: '#38bdf8', letterSpacing: '-0.5px' }}>Workspace Hub</h1>
-          <p style={{ color: '#94a3b8', fontSize: '13px', margin: '4px 0 0 0' }}>Professional Management Console</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, color: '#00f0ff', letterSpacing: '-0.5px', textTransform: 'uppercase' }}>Workspace Hub</h1>
+          <p style={{ color: '#64748b', fontSize: '13px', margin: '6px 0 0 0', fontWeight: '500' }}>Operational Management Network</p>
         </div>
 
         <button 
           onClick={handleTriggerSync} 
           disabled={isSyncing} 
-          style={{ width: '100%', padding: '14px', background: isSyncing ? '#334155' : '#10b981', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: '0.2s' }}
+          style={{ width: '100%', padding: '16px', background: isSyncing ? '#1e293b' : 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: isSyncing ? '#64748b' : '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800', fontSize: '14px', cursor: isSyncing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: isSyncing ? 'none' : '0 4px 20px rgba(0,240,255,0.25)', transition: 'transform 0.2s, cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}
         >
-          {isSyncing && <div style={{ width: '14px', height: '14px', border: '2px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />}
-          {isSyncing ? "Syncing Pipelines..." : "🔄 Force Refresh Feeds"}
+          {isSyncing && <div style={{ width: '14px', height: '14px', border: '2px solid #070a12', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />}
+          {isSyncing ? "Syncing Grid Modules..." : "⚡ Force Sync Pipelines"}
         </button>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#94a3b8', marginBottom: '8px' }}>Active Workspace Filter</label>
-          <select value={currentCal} onChange={(e) => setCurrentCal(e.target.value)} style={{ width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '15px', cursor: 'pointer' }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '10px', letterSpacing: '1px' }}>System Domain Filters</label>
+          <select value={currentCal} onChange={(e) => setCurrentCal(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '15px', fontWeight: '600', cursor: 'pointer', outline: 'none' }}>
             <option value="combined">Combined Systems Grid</option>
             <option value="work">Work Operations</option>
             <option value="family">Family Framework</option>
@@ -173,23 +175,23 @@ function App() {
           </select>
         </div>
 
-        <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '12px', background: '#22314d', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>+ Manual Log Entry</button>
+        <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' }}>+ Manual Metric Log Entry</button>
 
-        <hr style={{ borderColor: '#22314d', margin: 0 }} />
+        <hr style={{ borderColor: '#1a2942', margin: 0 }} />
 
-        {/* AI REVIEW TRIAGE PIPELINE */}
+        {/* AI TRIAGE MANAGEMENT DRAWER */}
         <div>
-          <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', margin: '0 0 12px 0' }}>Gemini Exception Matrix Review</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '180px', overflowY: 'auto' }}>
+          <h3 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#475569', margin: '0 0 14px 0', letterSpacing: '1px', fontWeight: '800' }}>AI Triage Matrix Review</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
             {events.filter(e => e.isUnverified).length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#64748b', margin: 0, fontStyle: 'italic' }}>No anomalies tracked inside current frame view.</p>
+              <p style={{ fontSize: '13px', color: '#475569', margin: 0, fontStyle: 'italic' }}>No pending stream anomalies flagged.</p>
             ) : (
               events.filter(e => e.isUnverified).map(ev => (
-                <div key={ev.id} style={{ padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', borderLeft: '4px solid #ef4444', animation: 'slideIn 0.2s ease-out' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>{ev.title}</div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => handleVerifyKid(ev.id, 'verified_kid')} style={{ flex: 1, padding: '6px', background: '#10b981', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Approve</button>
-                    <button onClick={() => handleVerifyKid(ev.id, 'blocked')} style={{ flex: 1, padding: '6px', background: '#ef4444', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Purge</button>
+                <div key={ev.id} style={{ padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', borderLeft: '4px solid #ff0055', animation: 'slideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '10px', color: '#f1f5f9' }}>{ev.title}</div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => handleVerifyKid(ev.id, 'verified_kid')} style={{ flex: 1, padding: '8px', background: '#00ff66', border: 'none', borderRadius: '6px', color: '#070a12', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>Approve</button>
+                    <button onClick={() => handleVerifyKid(ev.id, 'blocked')} style={{ flex: 1, padding: '8px', background: '#ff0055', border: 'none', borderRadius: '6px', color: '#fff', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>Purge</button>
                   </div>
                 </div>
               ))
@@ -197,17 +199,17 @@ function App() {
           </div>
         </div>
 
-        {/* PERSISTENT SCRATCHPAD AUTOMATION */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '160px' }}>
-          <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', margin: 0 }}>System Scratchpad</h3>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ flex: 1, width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '14px', resize: 'none', lineHeight: '1.5', boxSizing: 'border-box' }} placeholder="Type log text details here..." />
-          <button onClick={handleSaveNotes} style={{ width: '100%', padding: '12px', background: '#22314d', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Commit Scratchpad Data</button>
+        {/* SYSTEM SCRATCHPAD ENGINE */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '180px' }}>
+          <h3 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#475569', margin: 0, letterSpacing: '1px', fontWeight: '800' }}>System Scratchpad</h3>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ flex: 1, width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', resize: 'none', lineHeight: '1.6', boxSizing: 'border-box', outline: 'none' }} placeholder="Commit secondary notes here..." />
+          <button onClick={handleSaveNotes} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>Save Scratchpad Frame</button>
         </div>
       </div>
 
-      {/* TIMELINE VISUAL DISPLAY CANVAS */}
-      <div style={{ flex: 1, padding: isMobile ? '12px' : '32px', boxSizing: 'border-box', height: isMobile ? 'auto' : '100vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, padding: '24px', background: '#131c2e', border: '1px solid #22314d', borderRadius: '16px', boxSizing: 'border-box', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+      {/* CORE CALENDAR GRID FRAME */}
+      <div style={{ flex: 1, padding: isMobile ? '12px' : '36px', boxSizing: 'border-box', height: isMobile ? 'auto' : '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={isMobile ? 'timeGridDay' : 'dayGridMonth'}
@@ -230,17 +232,16 @@ function App() {
             }}
             eventContent={(info) => {
               const ext = info.event.extendedProps;
-              let dot = '#64748b';
-              if (ext.calendar === 'work') dot = '#0284c7';
-              if (ext.calendar === 'family') dot = '#10b981';
+              let neonColor = '#64748b';
+              if (ext.calendar === 'work') neonColor = '#00f0ff';
+              if (ext.calendar === 'family') neonColor = '#00ff66';
               if (ext.calendar === 'kids-logs') {
-                dot = ext.sentiment === 'positive' ? '#10b981' : ext.sentiment === 'negative' ? '#ef4444' : '#f59e0b';
+                neonColor = ext.sentiment === 'positive' ? '#00ff66' : ext.sentiment === 'negative' ? '#ff0055' : '#ffaa00';
               }
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '2px', fontSize: '12px', color: '#fff', overflow: 'hidden' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: dot, flexShrink: 0 }} />
-                  <b style={{ opacity: 0.8, whiteSpace: 'nowrap' }}>{info.timeText}</b>
-                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{info.event.title}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 6px', fontSize: '12px', color: '#fff', overflow: 'hidden', background: 'rgba(7,10,18,0.4)', borderRadius: '6px', borderLeft: `3px solid ${neonColor}` }}>
+                  <b style={{ opacity: 0.9, whiteSpace: 'nowrap', color: neonColor }}>{info.timeText}</b>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '600' }}>{info.event.title}</span>
                 </div>
               );
             }}
@@ -250,68 +251,68 @@ function App() {
 
       {/* POPUP ACTION MODAL: DRILLDOWN EVENT INSPECTOR */}
       {selectedEvent && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(5,7,12,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box' }}>
-          <div style={{ width: '100%', maxWidth: '480px', padding: '28px', background: '#131c2e', border: '1px solid #22314d', borderRadius: '16px', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', padding: '4px 8px', background: '#22314d', borderRadius: '6px', color: '#38bdf8' }}>{selectedEvent.calendar} Domain</span>
-              <button onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '20px' }}>&times;</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)', animation: 'fadeIn 0.2s ease-out' }}>
+          <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box', animation: 'slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '20px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', padding: '6px 12px', background: '#111b2d', border: '1px solid #1a2942', borderRadius: '8px', color: '#00f0ff', letterSpacing: '0.5px' }}>{selectedEvent.calendar} Domain</span>
+              <button onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px', transition: 'color 0.2s' }}>&times;</button>
             </div>
-            <h2 style={{ margin: '0 0 12px 0', fontSize: '22px', fontWeight: '700' }}>{selectedEvent.title}</h2>
-            <p style={{ color: '#94a3b8', fontSize: '14px', margin: '0 0 24px 0', lineHeight: '1.6' }}>{selectedEvent.description || "No context summaries mapped into this operational data entry block."}</p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setSelectedEvent(null)} style={{ padding: '12px 20px', background: '#22314d', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>Close Window</button>
-              <button onClick={() => handleDeleteEvent(selectedEvent.id)} style={{ padding: '12px 20px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}>Purge Entry</button>
+            <h2 style={{ margin: '0 0 14px 0', fontSize: '24px', fontWeight: '800', color: '#fff' }}>{selectedEvent.title}</h2>
+            <p style={{ color: '#94a3b8', fontSize: '15px', margin: '0 0 28px 0', lineHeight: '1.7' }}>{selectedEvent.description || "No alternative descriptive logs available inside this tracking block."}</p>
+            <div style={{ display: 'flex', gap: '14px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setSelectedEvent(null)} style={{ padding: '14px 24px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>Close Frame</button>
+              <button onClick={() => handleDeleteEvent(selectedEvent.id)} style={{ padding: '14px 24px', background: '#ff0055', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 15px rgba(255,0,85,0.2)' }}>Delete Entry</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* POPUP ACTION MODAL: LOG INPUT MATRIX */}
+      {/* POPUP ACTION MODAL: INJECT DATA METRIC */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(5,7,12,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, padding: '16px', boxSizing: 'border-box' }}>
-          <div style={{ width: '100%', maxWidth: '500px', padding: '28px', background: '#131c2e', border: '1px solid #22314d', borderRadius: '16px', boxSizing: 'border-box' }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '700', color: '#38bdf8' }}>Log Action Metric Entry</h3>
-            <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)', animation: 'fadeIn 0.2s ease-out' }}>
+          <div style={{ width: '100%', maxWidth: '540px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box', animation: 'slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+            <h3 style={{ margin: '0 0 24px 0', fontSize: '22px', fontWeight: '800', color: '#00f0ff' }}>Log System Entry Metric</h3>
+            <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: 6 }}>Identity Label</label>
-                <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '14px' }} required />
+                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Event Identity Label</label>
+                <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', outline: 'none' }} required />
               </div>
-              <div style={{ display: 'flex', gap: '12px', flexDirection: isMobile ? 'column' : 'row' }}>
+              <div style={{ display: 'flex', gap: '16px', flexDirection: isMobile ? 'column' : 'row' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: 6 }}>Start Timeline Marker</label>
-                  <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '14px' }} required />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Timeline Start Marker</label>
+                  <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', outline: 'none' }} required />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: 6 }}>End Timeline Marker</label>
-                  <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '14px' }} />
+                  <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Timeline End Marker</label>
+                  <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', outline: 'none' }} />
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: 6 }}>Target Workspace Sector</label>
-                <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '14px' }}>
-                  <option value="combined">Combined Hub</option>
-                  <option value="work">Work Space</option>
-                  <option value="family">Family Framework</option>
-                  <option value="kids-logs">Kids Behavioral Streams</option>
+                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Allocation Sector Domain</label>
+                <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
+                  <option value="combined">Combined Systems</option>
+                  <option value="work">Work Space Operations</option>
+                  <option value="family">Family Framework Grid</option>
+                  <option value="kids-logs">Kids Behavioral Stream</option>
                 </select>
               </div>
               {formDomain === 'kids-logs' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: 6 }}>Sentiment Axis Evaluation</label>
-                  <select value={formSentiment} onChange={(e) => setFormSentiment(e.target.value)} style={{ width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Sentiment Axis Tracker</label>
+                  <select value={formSentiment} onChange={(e) => setFormSentiment(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
                     <option value="neutral">Neutral Balance</option>
                     <option value="positive">Positive Vector</option>
-                    <option value="negative">Negative Flag Event</option>
+                    <option value="negative">Negative Exception Entry</option>
                   </select>
                 </div>
               )}
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: 6 }}>Context Details Summary</label>
-                <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ width: '100%', padding: '12px', background: '#0b111e', border: '1px solid #22314d', borderRadius: '10px', color: '#fff', fontSize: '14px', resize: 'none' }} />
+                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Context Description Log Summary</label>
+                <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', resize: 'none', outline: 'none' }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '12px 20px', background: '#22314d', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Cancel</button>
-                <button type="submit" style={{ padding: '12px 20px', background: '#38bdf8', color: '#090d16', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}>Inject Record</button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '10px' }}>
+                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '14px 24px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', cursor: 'pointer' }}>Cancel Action</button>
+                <button type="submit" style={{ padding: '14px 24px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,240,255,0.2)' }}>Inject Data Module</button>
               </div>
             </form>
           </div>
@@ -321,11 +322,16 @@ function App() {
       <style>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideIn { from { transform: translateY(15px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .fc-theme-standard td, .fc-theme-standard th { border: 1px solid #1f2c44 !important; }
-        .fc .fc-button-primary { background: #111827 !important; border: 1px solid #22314d !important; color: #fff !important; font-weight: 600 !important; text-transform: capitalize; }
-        .fc .fc-button-active { background: #38bdf8 !important; color: #090d16 !important; }
-        .fc .fc-toolbar-title { color: #fff !important; font-weight: 700 !important; }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .fc-theme-standard td, .fc-theme-standard th { border: 1px solid #111b2d !important; }
+        .fc .fc-button-primary { background: #070a12 !important; border: 1px solid #1a2942 !important; color: #fff !important; font-weight: 700 !important; border-radius: 8px !important; text-transform: capitalize; padding: 8px 14px !important; }
+        .fc .fc-button-primary:hover { background: #111b2d !important; border-color: #00f0ff !important; }
+        .fc .fc-button-active { background: #00f0ff !important; color: #070a12 !important; font-weight: 800 !important; }
+        .fc .fc-toolbar-title { color: #fff !important; font-weight: 900 !important; font-size: 20px !important; text-transform: uppercase; letter-spacing: -0.5px; }
+        .fc-day-today { background: rgba(0,240,255,0.03) !important; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #070a12; }
+        ::-webkit-scrollbar-thumb { background: #1a2942; border-radius: 10px; }
       `}</style>
     </div>
   );
