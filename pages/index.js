@@ -24,11 +24,12 @@ export default function App() {
   const [formDomain, setFormDomain] = useState('combined');
   const [formSentiment, setFormSentiment] = useState('neutral');
   
-  // Hydration-safe responsive window state
+  // Safe default initialization for Next.js SSR
   const [isMobile, setIsMobile] = useState(false);
   const calendarRef = useRef(null);
 
   useEffect(() => {
+    // Only checks window properties safely inside the client browser
     setIsMobile(window.innerWidth < 1024);
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
