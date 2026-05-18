@@ -10,13 +10,13 @@ const CalendarWrapper = dynamic(() => Promise.all([
 ]).then(([FullCalendar, dayGrid, timeGrid, interaction]) => {
   return function Component({ events, isMobile, handleDateSelect, setSelectedEvent, currentCal }) {
     
-    // BACKEND-COMPATIBLE FILTER LAYER
+    // RIGID CLIENT-SIDE DOMAIN FILTER (FIXES STREAM CLUMPING)
     const filteredEvents = events.filter(event => {
       if (currentCal === 'combined') return true;
       if (currentCal === 'public-gcal') return event.calendar === 'public-gcal';
       
-      // Allow both local records and live external iCal assets to pass through on isolated streams
-      return event.calendar === currentCal || (event.isExternal && currentCal === event.calendar);
+      // Allow local entries matching the calendar OR external live feed items injected into this stream
+      return event.calendar === currentCal || (event.isExternal && event.originCalendar === currentCal);
     });
 
     return (
@@ -35,10 +35,16 @@ const CalendarWrapper = dynamic(() => Promise.all([
         eventClick={(info) => {
           const props = info.event.extendedProps;
           setSelectedEvent({
-            id: info.event.id, title: info.event.title,
-            start: info.event.startStr, end: info.event.endStr,
-            description: props.description, calendar: props.calendar, isExternal: props.isExternal,
-            metricSentiment: props.metricSentiment, metricLocation: props.metricLocation, metricSeverity: props.metricSeverity
+            id: info.event.id, 
+            title: info.event.title,
+            start: info.event.startStr || info.event.start, 
+            end: info.event.endStr || info.event.end,
+            description: props.description || '', 
+            calendar: props.calendar || currentCal, 
+            isExternal: props.isExternal || false,
+            metricSentiment: props.metricSentiment, 
+            metricLocation: props.metricLocation, 
+            metricSeverity: props.metricSeverity
           });
         }}
         eventContent={(info) => {
@@ -204,6 +210,35 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
+  // CLIENT METHOD TO COPIATE EXTERNAL CORRESPONDENCE OR OTHER EVENTS INTO LIAM-LIFE HUB
+  const handleCopyToLifeHub = async (eventToCopy) => {
+    try {
+      const payload = {
+        title: `[Copy] ${eventToCopy.title}`,
+        start: eventToCopy.start,
+        end: eventToCopy.end || null,
+        description: eventToCopy.description || 'Copied from system stream.',
+        calendar: 'liam-life',
+        metricSentiment: null,
+        metricLocation: null,
+        metricSeverity: 0
+      };
+
+      const res = await fetch(`${BACKEND_API}/api/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        setSelectedEvent(null);
+        fetchAllData();
+      }
+    } catch (err) {
+      console.error("Failed to copy event to life hub matrix container:", err);
+    }
+  };
+
   const executePrintLayout = () => {
     setExportWizardOpen(false);
     setTimeout(() => { window.print(); }, 300);
@@ -295,7 +330,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* MAIN VIEWPORT */}
+      {/* MAIN VIEWPORT - KEY PROP FORCED RESET ACTIVATED HERE */}
       <div className="no-print" style={{ flex: 1, padding: isMobile ? '12px' : '24px', display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         <div style={{ flex: 1, padding: isMobile ? '12px' : '24px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px', display: 'flex', flexDirection: 'column' }}>
           {isLoading ? (
@@ -541,12 +576,24 @@ export default function App() {
           <h4 style={{ margin: '0 0 6px 0', color: '#00f0ff', fontSize: '15px' }}>{selectedEvent.title}</h4>
           <span style={{ display: 'inline-block', padding: '2px 6px', background: '#1e293b', borderRadius: '4px', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', marginBottom: '10px' }}>Domain: {selectedEvent.calendar}</span>
           <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: '#94a3b8', lineHeight: '1.5' }}>{selectedEvent.description || 'No descriptive summary added.'}</p>
+          
           {selectedEvent.calendar === 'kids-logs' && (
             <div style={{ fontSize: '11px', background: '#070a12', padding: '8px', borderRadius: '6px', marginBottom: '14px', border: '1px solid #1a2942' }}>
               <div><strong>Location:</strong> {selectedEvent.metricLocation || 'Unspecified'}</div>
               <div><strong>Severity Assessment:</strong> Lv {selectedEvent.metricSeverity || 0}</div>
             </div>
           )}
+
+          {/* DYNAMIC UTILITY LINK: TRANSFER REFERENCE ENTRY INTO LIAM-LIFE */}
+          {selectedEvent.calendar !== 'liam-life' && (
+            <button 
+              onClick={() => handleCopyToLifeHub(selectedEvent)}
+              style={{ width: '100%', padding: '8px', background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '700', marginBottom: '8px' }}
+            >
+              📋 COPY TO LIFE HUB
+            </button>
+          )}
+
           <button onClick={() => setSelectedEvent(null)} style={{ width: '100%', padding: '6px', background: '#1a2942', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>Dismiss Pane</button>
         </div>
       )}
