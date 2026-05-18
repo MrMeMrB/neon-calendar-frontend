@@ -260,7 +260,7 @@ export default function App() {
               {todos.length === 0 ? (
                 <p className="text-xs text-slate-500 italic p-2">No tasks logged onto the active run list.</p>
               ) : (
-                <todos.map(todo => (
+                todos.map(todo => (
                   <div key={todo.id} className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl gap-3">
                     <button onClick={() => toggleTodo(todo.id)} className={`flex items-center gap-2.5 text-sm font-medium text-left transition-colors ${todo.completed ? 'line-through text-slate-500' : 'text-slate-300'}`}>
                       <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${todo.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-700 bg-slate-900'}`}>{todo.completed && <CheckCircle className="w-3 h-3 stroke-[3]" />}</div>
