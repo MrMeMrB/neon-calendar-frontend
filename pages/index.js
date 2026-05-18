@@ -26,14 +26,13 @@ export default function Home() {
   const [generalNotes, setGeneralNotes] = useState("");
   const [targetRoutingScope, setTargetRoutingScope] = useState("liam");
 
-  const BACKEND_API = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+  const BACKEND_API = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 
-  // Accept a parameter explicitly to bypass React state sync delays
+  // Explicit safety handler for targeted channel views
   const fetchSavedEvents = async (targetView = currentCalendar) => {
     if (!BACKEND_API) return;
     try {
       const timestamp = new Date().getTime();
-      // Forces the endpoint to fetch the specific channel without backend or browser asset caching
       const res = await fetch(`${BACKEND_API}/api/events?calendar=${targetView}&t=${timestamp}`);
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -56,7 +55,7 @@ export default function Home() {
     } catch (err) { console.error("Error reading scratchpad info:", err); }
   };
 
-  // Listens directly to tab actions and passes the exact chosen layout
+  // Monitor target matrix changes seamlessly
   useEffect(() => {
     fetchSavedEvents(currentCalendar);
   }, [currentCalendar]);
@@ -83,7 +82,8 @@ export default function Home() {
       if (res.ok) {
         setManualTitle(""); setManualStart(""); setManualEnd(""); setManualDesc("");
         setIsModalOpen(false);
-        fetchSavedEvents(currentCalendar);
+        // Safety gap to let pool transactions finish processing
+        setTimeout(() => fetchSavedEvents(currentCalendar), 300);
       }
     } catch (err) { console.error(err); }
   };
@@ -135,10 +135,10 @@ export default function Home() {
     if (!selectedEvent) return;
     setIsLearning(true);
 
-    setDbEvents(prev => {
-      if (status === 'blocked') return prev.filter(ev => ev.id !== selectedEvent.id);
-      return prev.map(ev => ev.id === selectedEvent.id ? { ...ev, title: ev.title.replace('❓ ', ''), isUnverified: false, color: '#f43f5e' } : ev);
-    });
+    // Optimistically hide from layout array before reload
+    if (status === 'blocked') {
+      setDbEvents(prev => prev.filter(ev => ev.id !== selectedEvent.id));
+    }
 
     try {
       const res = await fetch(`${BACKEND_API}/api/events/learn`, {
@@ -148,15 +148,20 @@ export default function Home() {
       });
       if (res.ok) {
         setSelectedEvent(null);
-        fetchSavedEvents(currentCalendar);
+        setTimeout(() => fetchSavedEvents(currentCalendar), 400);
       }
-    } catch (err) { console.error(err); } finally { setIsLearning(false); }
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setIsLearning(false); 
+    }
   };
 
   const handleRouteTransfer = async () => {
     if (!selectedEvent) return;
     setIsRouting(true);
 
+    // Optimistically pull from current display scope grid
     setDbEvents(prev => prev.filter(ev => ev.id !== selectedEvent.id));
 
     try {
@@ -175,9 +180,13 @@ export default function Home() {
       });
       if (res.ok) {
         setSelectedEvent(null);
-        fetchSavedEvents(currentCalendar);
+        setTimeout(() => fetchSavedEvents(currentCalendar), 400);
       }
-    } catch (err) { console.error(err); } finally { setIsRouting(false); }
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setIsRouting(false); 
+    }
   };
 
   const getReminders = (maxDays) => {
@@ -220,7 +229,7 @@ export default function Home() {
         <main style={{ flex: 1, padding: '24px', display: 'flex', gap: '24px' }}>
           <div style={{ flex: 3 }}>
             <FullCalendar 
-              key={currentCalendar} // 👈 DESTROYS AND CLEAN-RESETS THE GRAPHICAL CALENDAR ON TAB SELECTION
+              key={currentCalendar} 
               plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]} 
               initialView="dayGridMonth" 
               events={dbEvents} 
@@ -323,14 +332,14 @@ export default function Home() {
                     onClick={() => handleLearnAction('verified_kid')}
                     style={{ flex: 1, backgroundColor: '#10b981', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    {isLearning ? <div className="loading-spinner"></div> : "✅ Is Kid Related (Keep & Return to Normal)"}
+                    {isLearning ? <div className="loading-spinner"></div> : "✅ Is Kid Related (Keep)"}
                   </button>
                   <button 
                     disabled={isLearning}
                     onClick={() => handleLearnAction('blocked')}
                     style={{ flex: 1, backgroundColor: '#f43f5e', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: isLearning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                   >
-                    {isLearning ? <div className="loading-spinner"></div> : "❌ Not Kid Related (Hide Completely)"}
+                    {isLearning ? <div className="loading-spinner"></div> : "❌ Not Kid Related (Hide)"}
                   </button>
                 </div>
               </div>
@@ -366,7 +375,7 @@ export default function Home() {
             <textarea 
               value={eventNotes}
               onChange={e => setEventNotes(e.target.value)}
-              placeholder="Type notes or context additions directly into this calendar event record..."
+              placeholder="Type notes directly..."
               style={{ width: '100%', height: '70px', backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '8px', padding: '12px', color: '#fff', fontSize: '13px', marginBottom: '16px', resize: 'none', outline: 'none' }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
