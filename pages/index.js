@@ -11,11 +11,11 @@ const CalendarWrapper = dynamic(() => Promise.all([
     return (
       <FullCalendar.default
         plugins={[dayGrid.default, timeGrid.default, interaction.default]}
-        initialView={isMobile ? 'timeGridDay' : 'dayGridMonth'}
+        initialView={isMobile ? 'listWeek' : 'dayGridMonth'}
         headerToolbar={{ 
           left: 'prev,next today', 
           center: 'title', 
-          right: isMobile ? 'timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay' 
+          right: isMobile ? 'listWeek,timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay' 
         }}
         events={events}
         height="100%"
@@ -24,16 +24,10 @@ const CalendarWrapper = dynamic(() => Promise.all([
         eventClick={(info) => {
           const props = info.event.extendedProps;
           setSelectedEvent({
-            id: info.event.id,
-            title: info.event.title,
-            start: info.event.startStr,
-            end: info.event.endStr,
-            description: props.description,
-            calendar: props.calendar,
-            isExternal: props.isExternal,
-            metricSentiment: props.metricSentiment,
-            metricLocation: props.metricLocation,
-            metricSeverity: props.metricSeverity
+            id: info.event.id, title: info.event.title,
+            start: info.event.startStr, end: info.event.endStr,
+            description: props.description, calendar: props.calendar, isExternal: props.isExternal,
+            metricSentiment: props.metricSentiment, metricLocation: props.metricLocation, metricSeverity: props.metricSeverity
           });
         }}
         eventContent={(info) => {
@@ -41,8 +35,8 @@ const CalendarWrapper = dynamic(() => Promise.all([
           const sent = info.event.extendedProps.metricSentiment;
           const icon = isKidsLog ? (sent === 'Negative' ? '🔴 ' : sent === 'Neutral' ? '🟡 ' : '🟢 ') : '';
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 6px', fontSize: '12px', color: '#fff', overflow: 'hidden', background: 'rgba(7,10,18,0.4)', borderRadius: '6px', borderLeft: `3px solid ${info.event.backgroundColor || '#64748b'}` }}>
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '600' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', fontSize: '11px', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', background: 'rgba(7,10,18,0.6)', borderRadius: '4px', borderLeft: `3px solid ${info.event.backgroundColor || '#64748b'}` }}>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '500' }}>
                 {icon}{info.event.title}
               </span>
             </div>
@@ -51,291 +45,308 @@ const CalendarWrapper = dynamic(() => Promise.all([
       />
     );
   };
-}), { ssr: false, loading: () => <div style={{ color: '#64748b' }}>Loading Grid Frame...</div> });
+}), { ssr: false, loading: () => <div style={{ color: '#00f0ff', padding: '20px' }}>Syncing Quantum Grid Infrastructure...</div> });
 
 const BACKEND_API = "https://calendar-backend-dzdp.onrender.com"; 
 
 export default function App() {
+  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(null);
+  const [loginUser, setLoginUser] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [authError, setAuthError] = useState('');
+
   const [events, setEvents] = useState([]);
   const [currentCal, setCurrentCal] = useState('combined');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+  const [adminViewActive, setAdminViewActive] = useState(false);
+  const [userList, setUserList] = useState([]);
+
+  // Admin Create User Form Fields
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('user');
+
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('');
   const [formEnd, setFormEnd] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formDomain, setFormDomain] = useState('combined');
-
   const [metricSentiment, setMetricSentiment] = useState('Neutral');
   const [metricLocation, setMetricLocation] = useState('at home');
   const [metricSeverity, setMetricSeverity] = useState('2');
-
   const [routeTarget, setRouteTarget] = useState('liam-life');
   const [isMobile, setIsMobile] = useState(false);
-  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
-    setHasMounted(true);
     setIsMobile(window.innerWidth < 1024);
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
+    const savedToken = localStorage.getItem('matrix_auth_token');
+    const savedUser = localStorage.getItem('matrix_auth_user');
+    if (savedToken && savedUser) {
+      setToken(savedToken);
+      setUser(JSON.parse(savedUser));
+    }
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const fetchAllData = async () => {
-    setIsLoading(true); // Turn on loading states briefly to let DOM refresh cleanly
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError('');
     try {
-      const t = new Date().getTime();
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${t}`);
+      const res = await fetch(`${BACKEND_API}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUser, password: loginPass })
+      });
       const data = await res.json();
-      if (Array.isArray(data)) setEvents(data);
-    } catch (err) {
-      console.error("Link sync dropped:", err);
-    } finally {
-      setIsLoading(false);
-    }
+      if (!res.ok) throw new Error(data.error || "Authentication denied.");
+      localStorage.setItem('matrix_auth_token', data.token);
+      localStorage.setItem('matrix_auth_user', JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
+    } catch (err) { setAuthError(err.message); }
   };
 
-  useEffect(() => {
-    if (hasMounted) fetchAllData();
-  }, [currentCal, hasMounted]);
+  const handleLogout = () => {
+    localStorage.clear();
+    setToken(null);
+    setUser(null);
+    setAdminViewActive(false);
+  };
+
+  const fetchAllData = async () => {
+    if (!token) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${new Date().getTime()}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) setEvents(data);
+    } catch (err) { console.error(err); }
+    finally { setIsLoading(false); }
+  };
+
+  const fetchAdminUsers = async () => {
+    if (user?.role !== 'admin') return;
+    try {
+      const res = await fetch(`${BACKEND_API}/api/admin/users`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) setUserList(data);
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => { if (token) { fetchAllData(); if (adminViewActive) fetchAdminUsers(); } }, [currentCal, token, adminViewActive]);
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${BACKEND_API}/api/admin/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ username: newUsername, password: newPassword, role: newUserRole })
+      });
+      if (res.ok) { setNewUsername(''); setNewPassword(''); fetchAdminUsers(); }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteUser = async (id) => {
+    try {
+      await fetch(`${BACKEND_API}/api/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      fetchAdminUsers();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${BACKEND_API}/api/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          title: formTitle, start: formStart, end: formEnd || null, description: formDesc, calendar: formDomain,
+          metricSentiment: formDomain === 'kids-logs' ? metricSentiment : null,
+          metricLocation: formDomain === 'kids-logs' ? metricLocation : null,
+          metricSeverity: formDomain === 'kids-logs' ? metricSeverity : 0
+        })
+      });
+      if (res.ok) { setIsModalOpen(false); setFormTitle(''); setFormStart(''); setFormEnd(''); setFormDesc(''); fetchAllData(); }
+    } catch (err) { console.error(err); }
+  };
 
   const handleRouteEvent = async () => {
-    if (!selectedEvent) return;
     try {
       const res = await fetch(`${BACKEND_API}/api/events/route`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventId: selectedEvent.id,
-          title: selectedEvent.title,
-          start: selectedEvent.start,
-          end: selectedEvent.end,
-          description: selectedEvent.description,
-          targetCalendar: routeTarget,
-          isExternal: selectedEvent.isExternal
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ eventId: selectedEvent.id, title: selectedEvent.title, start: selectedEvent.start, end: selectedEvent.end, description: selectedEvent.description, targetCalendar: routeTarget, isExternal: selectedEvent.isExternal })
       });
-      if (res.ok) {
-        setSelectedEvent(null);
-        fetchAllData();
-      }
-    } catch (err) {}
+      if (res.ok) { setSelectedEvent(null); fetchAllData(); }
+    } catch (err) { console.error(err); }
   };
 
   const handlePurgeExternal = async (id) => {
     try {
       const res = await fetch(`${BACKEND_API}/api/events/learn`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ eventId: id, status: 'blocked' })
       });
-      if (res.ok) {
-        setSelectedEvent(null);
-        fetchAllData();
-      }
-    } catch (err) {}
+      if (res.ok) { setSelectedEvent(null); fetchAllData(); }
+    } catch (err) { console.error(err); }
   };
 
-  const handleCreateEvent = async (e) => {
-    e.preventDefault();
-    if (!formTitle || !formStart) return alert("Required context values missing.");
-    try {
-      const res = await fetch(`${BACKEND_API}/api/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: formTitle,
-          start: formStart,
-          end: formEnd || null,
-          description: formDesc,
-          calendar: formDomain,
-          metricSentiment: formDomain === 'kids-logs' ? metricSentiment : null,
-          metricLocation: formDomain === 'kids-logs' ? metricLocation : null,
-          metricSeverity: formDomain === 'kids-logs' ? metricSeverity : 0
-        })
-      });
-      if (res.ok) {
-        setIsModalOpen(false);
-        setFormTitle(''); setFormStart(''); setFormEnd(''); setFormDesc('');
-        fetchAllData();
-      }
-    } catch (err) {}
-  };
-
-  const totalLogs = events.filter(e => e.calendar === 'kids-logs').length;
-  const negativeLogs = events.filter(e => e.calendar === 'kids-logs' && e.metricSentiment === 'Negative').length;
-
-  if (!hasMounted) return null;
+  // SCREEN RENDERING CONDITION 1: LOGIN PORTAL SCREEN
+  if (!token) {
+    return (
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#070a12', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui, sans-serif', padding: '20px' }}>
+        <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: '420px', background: '#0b1325', border: '1px solid #1a2942', padding: '40px', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+          <h2 style={{ margin: '0 0 8px 0', color: '#00f0ff', fontWeight: '900', fontSize: '28px' }}>Security Access</h2>
+          <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 28px 0' }}>Matrix Node Verification</p>
+          {authError && <div style={{ background: 'rgba(255,0,85,0.1)', border: '1px solid #ff0055', color: '#ff4382', padding: '12px', borderRadius: '8px', fontSize: '13px', marginBottom: '20px' }}>{authError}</div>}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#475569', marginBottom: '6px', fontWeight: '700' }}>Identity Token ID</label>
+            <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '10px', color: '#fff', fontSize: '15px' }} required />
+          </div>
+          <div style={{ marginBottom: '32px' }}>
+            <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#475569', marginBottom: '6px', fontWeight: '700' }}>Private Pass-Key</label>
+            <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '10px', color: '#fff', fontSize: '15px' }} required />
+          </div>
+          <button type="submit" style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', border: 'none', borderRadius: '12px', color: '#070a12', fontWeight: '800', fontSize: '15px', cursor: 'pointer' }}>Authenticate</button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#070a12', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* SIDEBAR PANEL */}
-      <div style={{ width: isMobile ? '100%' : '380px', background: '#0b1325', borderRight: '1px solid #1a2942', padding: '28px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, color: '#00f0ff' }}>Workspace Matrix</h1>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>Data Flow Control</p>
+      {/* NAVIGATION PANEL */}
+      <div style={{ width: isMobile ? '100%' : '340px', background: '#0b1325', borderRight: '1px solid #1a2942', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: '20px', fontWeight: '900', margin: 0, color: '#00f0ff' }}>Matrix Center</h1>
+            <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0 0' }}>Operator: {user?.username}</p>
+          </div>
+          <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid #1a2942', color: '#64748b', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Exit</button>
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '10px' }}>Systems Grid Focus Filter</label>
-          <select value={currentCal} onChange={(e) => setCurrentCal(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff' }}>
-            <option value="combined">Combined Calendar</option>
-            <option value="liam-life">Liam's Life Calendar</option>
-            <option value="work">Work Calendar</option>
-            <option value="zoe">Zoe Calendar</option>
-            <option value="kids-logs">Kids Behavioural Calendar</option>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '8px' }}>Active Filter View</label>
+          <select value={currentCal} onChange={(e) => { setAdminViewActive(false); setCurrentCal(e.target.value); }} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '10px', color: '#fff' }}>
+            <option value="combined">Combined Systems</option>
+            <option value="liam-life">Liam's Life Hub</option>
+            <option value="work">ATI Work Matrix</option>
+            <option value="zoe">Zoe Control Hub</option>
+            <option value="kids-logs">Kids Behaviour Logs</option>
           </select>
         </div>
 
-        <button onClick={() => { setFormDomain(currentCal === 'combined' ? 'liam-life' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Log Manual Entry</button>
-
-        {currentCal === 'kids-logs' && (
-          <div style={{ padding: '20px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '14px' }}>
-            <h4 style={{ margin: '0 0 12px 0', fontSize: '12px', textTransform: 'uppercase', color: '#ec4899', letterSpacing: '0.5px' }}>Behavioural KPI Summary</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div style={{ background: '#0b1325', padding: '12px', borderRadius: '8px', border: '1px solid #1a2942' }}>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Total Events</div>
-                <div style={{ fontSize: '20px', fontWeight: '800', color: '#fff' }}>{totalLogs}</div>
-              </div>
-              <div style={{ background: '#0b1325', padding: '12px', borderRadius: '8px', border: '1px solid #1a2942' }}>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Negative Incidents</div>
-                <div style={{ fontSize: '20px', fontWeight: '800', color: '#ff0055' }}>{negativeLogs}</div>
-              </div>
-            </div>
-          </div>
+        <button onClick={() => { setFormDomain(currentCal === 'combined' ? 'liam-life' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '12px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}>+ Add Custom Metric</button>
+        
+        {user?.role === 'admin' && (
+          <button onClick={() => setAdminViewActive(!adminViewActive)} style={{ width: '100%', padding: '12px', background: adminViewActive ? '#ff0055' : '#070a12', color: '#fff', border: '1px solid #1a2942', borderRadius: '10px', fontSize: '13px', cursor: 'pointer' }}>
+            {adminViewActive ? "Close User Control" : "🔧 Administrative User Panel"}
+          </button>
         )}
       </div>
 
-      {/* CALENDAR BLOCK VIEW */}
-      <div style={{ flex: 1, padding: isMobile ? '12px' : '36px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-        <div style={{ flex: 1, padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
-          {isLoading ? (
-            <div style={{ display: 'flex', height: '100%', width: '100%', justifyContent: 'center', alignItems: 'center', color: '#64748b' }}>
-              <div style={{ width: '40px', height: '40px', border: '3px solid #111b2d', borderTopColor: '#00f0ff', borderRadius: '50%', animation: 'spin 0.8s infinite linear' }} />
+      {/* CORE DISPLAY LAYER */}
+      <div style={{ flex: 1, padding: isMobile ? '12px' : '24px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, padding: isMobile ? '12px' : '24px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px', minHeight: '500px' }}>
+          
+          {adminViewActive ? (
+            /* ADMIN COMPONENT BLOCK */
+            <div style={{ padding: '10px' }}>
+              <h2 style={{ color: '#00f0ff', margin: '0 0 20px 0' }}>User Rights Configuration</h2>
+              <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px', marginBottom: '30px' }}>
+                <input type="text" placeholder="Username ID" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} style={{ flex: 1, padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }} required />
+                <input type="password" placeholder="Passphrase" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ flex: 1, padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }} required />
+                <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)} style={{ padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
+                  <option value="user">Standard User Clearance</option>
+                  <option value="admin">Admin Privilege Level</option>
+                </select>
+                <button type="submit" style={{ padding: '10px 20px', background: '#00f0ff', border: 'none', borderRadius: '6px', color: '#070a12', fontWeight: '800' }}>Create Account</button>
+              </form>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {userList.map(u => (
+                  <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px', background: '#070a12', borderRadius: '8px', border: '1px solid #1a2942', alignItems: 'center' }}>
+                    <div><strong>{u.username}</strong> <span style={{ color: '#64748b', fontSize: '12px' }}>({u.role})</span></div>
+                    <button onClick={() => handleDeleteUser(u.id)} style={{ padding: '6px 12px', background: '#ff0055', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '11px', cursor: 'pointer' }}>Revoke Access</button>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
-            /* FIX: Passing unique currentCal string key triggers immediate state teardown and build cycle */
+            /* CALENDAR GRID FRAME LAYER */
+            isLoading ? <div style={{ color: '#64748b' }}>Refreshing Feeds...</div> :
             <CalendarWrapper key={currentCal} events={events} isMobile={isMobile} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
           )}
         </div>
       </div>
 
-      {/* DETAILS INSPECTOR & TRIAGE ROUTER */}
+      {/* POP-OUT INSPECTOR PANEL SLIDEOVER (MOBILE ADAPTIVE DRAW) */}
       {selectedEvent && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, backdropFilter: 'blur(8px)' }}>
-          <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '22px', fontWeight: '800' }}>{selectedEvent.title}</h2>
-            <p style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Current Group context: {selectedEvent.calendar}</p>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: isMobile ? 'flex-end' : 'center', zIndex: 9999, backdropFilter: 'blur(10px)' }}>
+          <div style={{ width: '100%', maxWidth: '540px', padding: '24px', background: '#0b1325', borderTop: '2px solid #1a2942', borderLeft: isMobile ? 'none' : '1px solid #1a2942', borderRight: isMobile ? 'none' : '1px solid #1a2942', borderRadius: isMobile ? '24px 24px 0 0' : '16px', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ margin: '0 0 6px 0', fontSize: '20px', color: '#fff' }}>{selectedEvent.title}</h2>
+            <p style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 16px 0' }}>Context Focus: {selectedEvent.calendar}</p>
             
-            {selectedEvent.calendar === 'kids-logs' && selectedEvent.metricSentiment && (
-              <div style={{ display: 'flex', gap: '8px', margin: '12px 0', padding: '10px', background: '#070a12', borderRadius: '8px', border: '1px solid #1a2942', fontSize: '12px' }}>
-                <div><strong>Sentiment:</strong> {selectedEvent.metricSentiment}</div> | 
-                <div><strong>Location:</strong> {selectedEvent.metricLocation}</div> | 
-                <div><strong>Severity:</strong> Lvl {selectedEvent.metricSeverity}/5</div>
-              </div>
-            )}
-
-            <p style={{ color: '#94a3b8', fontSize: '14px', margin: '16px 0 24px 0', lineHeight: '1.6' }}>{selectedEvent.description || "No supplemental details logged."}</p>
+            <p style={{ color: '#94a3b8', fontSize: '14px', background: '#070a12', padding: '14px', borderRadius: '8px', border: '1px solid #1a2942', margin: '0 0 20px 0', whiteSpace: 'pre-wrap' }}>{selectedEvent.description || "No descriptions detailed."}</p>
             
-            <div style={{ background: '#070a12', padding: '16px', borderRadius: '12px', border: '1px solid #1a2942', marginBottom: '24px' }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '8px' }}>Move/Route This Event Into Core Management</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <select value={routeTarget} onChange={(e) => setRouteTarget(e.target.value)} style={{ flex: 1, padding: '10px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }}>
-                  <option value="liam-life">Liam's Life Calendar</option>
-                  <option value="kids-logs">Kids Behavioural Calendar</option>
-                  <option value="work">Work Calendar</option>
+            <div style={{ background: '#070a12', padding: '14px', borderRadius: '10px', border: '1px solid #1a2942', marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '6px' }}>Triage Routing Interface</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select value={routeTarget} onChange={(e) => setRouteTarget(e.target.value)} style={{ flex: 1, padding: '8px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
+                  <option value="liam-life">Liam's Life Hub</option>
+                  <option value="kids-logs">Kids Behaviour Logs</option>
+                  <option value="work">ATI Work Matrix</option>
                 </select>
-                <button onClick={handleRouteEvent} style={{ padding: '10px 16px', background: '#00f0ff', border: 'none', borderRadius: '8px', fontWeight: '800', color: '#070a12', cursor: 'pointer' }}>Execute Route</button>
+                <button onClick={routeTarget ? handleRouteEvent : null} style={{ padding: '8px 14px', background: '#00f0ff', border: 'none', borderRadius: '6px', color: '#070a12', fontWeight: '800', cursor: 'pointer' }}>Execute</button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setSelectedEvent(null)} style={{ padding: '12px 20px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', cursor: 'pointer' }}>Close Frame</button>
-              <button onClick={() => handlePurgeExternal(selectedEvent.id)} style={{ padding: '12px 20px', background: '#ff0055', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>Purge/Hide</button>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setSelectedEvent(null)} style={{ padding: '10px 16px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '8px', cursor: 'pointer' }}>Dismiss</button>
+              <button onClick={() => handlePurgeExternal(selectedEvent.id)} style={{ padding: '10px 16px', background: '#ff0055', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Purge / Hide</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* METRIC MANUAL ENTRY MODAL */}
+      {/* MANUAL LOG MODAL */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, backdropFilter: 'blur(8px)' }}>
-          <div style={{ width: '100%', maxWidth: '520px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
-            <h3 style={{ margin: '0 0 20px 0', color: '#00f0ff', fontWeight: '800' }}>Log System Entry Metric</h3>
-            <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              
-              <input type="text" placeholder="Entry Title / Log Label" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
-              
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ flex: 1, padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
-                <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ flex: 1, padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} />
-              </div>
-
-              <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }}>
-                <option value="liam-life">Liam's Life Calendar</option>
-                <option value="kids-logs">Kids Behavioural Calendar</option>
-                <option value="work">Work Space Operations</option>
-                <option value="zoe">Zoe Hub</option>
-              </select>
-
-              {formDomain === 'kids-logs' && (
-                <div style={{ padding: '16px', background: '#070a12', borderRadius: '10px', border: '1px solid #ec4899', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#ec4899', fontWeight: '800' }}>Behaviour Data Parameters</span>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Sentiment Value</label>
-                      <select value={metricSentiment} onChange={(e) => setMetricSentiment(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
-                        <option value="Negative">Negative Incident</option>
-                        <option value="Neutral">Neutral / Update</option>
-                        <option value="Positive">Positive Note</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Context Location</label>
-                      <select value={metricLocation} onChange={(e) => setMetricLocation(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
-                        <option value="at school">At School</option>
-                        <option value="at home">At Home</option>
-                        <option value="handover">During Handover</option>
-                        <option value="external">Other Context</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Impact Severity Level ({metricSeverity}/5)</label>
-                    <input type="range" min="1" max="5" value={metricSeverity} onChange={(e) => setMetricSeverity(e.target.value)} style={{ width: '100%', accentColor: '#ec4899' }} />
-                  </div>
-                </div>
-              )}
-
-              <textarea placeholder="Log summary descriptions, details or notes..." value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none' }} />
-              
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '12px 20px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px' }}>Cancel</button>
-                <button type="submit" style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800' }}>Inject Data</button>
-              </div>
-            </form>
-          </div>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, backdropFilter: 'blur(8px)' }}>
+          <form onSubmit={handleCreateEvent} style={{ width: '90%', maxWidth: '500px', padding: '24px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <h3 style={{ margin: 0, color: '#00f0ff' }}>Log Event Parameter</h3>
+            <input type="text" placeholder="Metric Name / Context" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} required />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ flex: 1, padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }} required />
+              <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ flex: 1, padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }} />
+            </div>
+            <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
+              <option value="liam-life">Liam's Life Hub</option>
+              <option value="kids-logs">Kids Behaviour Logs</option>
+              <option value="work">ATI Work Matrix</option>
+              <option value="zoe">Zoe Control Hub</option>
+            </select>
+            <textarea placeholder="Supplemental Context Descriptions..." value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', resize: 'none' }} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 16px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '8px' }}>Cancel</button>
+              <button type="submit" style={{ padding: '10px 16px', background: '#00f0ff', color: '#070a12', border: 'none', borderRadius: '8px', fontWeight: '700' }}>Commit</button>
+            </div>
+          </form>
         </div>
       )}
-      
-      <style>{`
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .fc-theme-standard td, .fc-theme-standard th { border: 1px solid #111b2d !important; }
-        .fc .fc-button-primary { background: #070a12 !important; border: 1px solid #1a2942 !important; color: #fff !important; font-weight: 700 !important; border-radius: 8px !important; }
-        .fc .fc-button-active { background: #00f0ff !important; color: #070a12 !important; font-weight: 800 !important; }
-        .fc .fc-toolbar-title { color: #fff !important; font-weight: 900 !important; }
-        .fc-day-today { background: rgba(0,240,255,0.02) !important; }
-      `}</style>
     </div>
   );
-}
-
-export async function getServerSideProps() {
-  return { props: {} };
 }
