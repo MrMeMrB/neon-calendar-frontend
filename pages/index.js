@@ -1,548 +1,306 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Shield, Clock, Plus, LogOut, CheckCircle, AlertTriangle, Briefcase, Heart, BookOpen, Layers } from 'lucide-react';
 
-const CalendarWrapper = dynamic(() => Promise.all([
-  import('@fullcalendar/react'),
-  import('@fullcalendar/daygrid'),
-  import('@fullcalendar/timegrid'),
-  import('@fullcalendar/interaction')
-]).then(([FullCalendar, dayGrid, timeGrid, interaction]) => {
-  return function Component({ events, isMobile, handleDateSelect, setSelectedEvent }) {
-    return (
-      <FullCalendar.default
-        plugins={[dayGrid.default, timeGrid.default, interaction.default]}
-        initialView={isMobile ? 'listWeek' : 'dayGridMonth'}
-        headerToolbar={{ 
-          left: 'prev,next today', 
-          center: 'title', 
-          right: isMobile ? 'listWeek,timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay' 
-        }}
-        events={events}
-        height="100%"
-        selectable={true}
-        select={handleDateSelect}
-        eventClick={(info) => {
-          const props = info.event.extendedProps;
-          setSelectedEvent({
-            id: info.event.id, 
-            title: info.event.title,
-            start: info.event.startStr || info.event.start, 
-            end: info.event.endStr || info.event.end,
-            description: props.description || '', 
-            calendar: props.calendar || 'combined', 
-            isExternal: props.isExternal || false,
-            metricSentiment: props.metricSentiment, 
-            metricLocation: props.metricLocation, 
-            metricSeverity: props.metricSeverity
-          });
-        }}
-        eventContent={(info) => {
-          const isKidsLog = info.event.extendedProps.calendar === 'kids-logs';
-          const cat = info.event.extendedProps.metricSentiment;
-          let icon = '';
-          if (isKidsLog) {
-            if (cat === 'Concern' || cat === 'Behavioural') icon = '🔴 ';
-            else if (cat === 'Emotional' || cat === 'Health') icon = '🟡 ';
-            else if (cat === 'Positive Event' || cat === 'School') icon = '🟢 ';
-            else icon = '🔷 ';
-          }
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 4px', fontSize: '11px', color: '#fff', textOverflow: 'ellipsis', overflow: 'hidden', background: 'rgba(7,10,18,0.6)', borderRadius: '4px', borderLeft: `3px solid ${info.event.backgroundColor || '#64748b'}` }}>
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '500' }}>
-                {icon}{info.event.title}
-              </span>
-            </div>
-          );
-        }}
-      />
-    );
-  };
-}), { 
-  ssr: false, 
-  loading: () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#00f0ff', padding: '40px', background: '#070a12', fontFamily: 'monospace' }}>
-      <div className="quantum-spinner"></div>
-      <span>INITIALIZING QUANTUM GRID INFRASTRUCTURE...</span>
-    </div>
-  ) 
-});
-
-const BACKEND_API = "https://calendar-backend-dzdp.onrender.com"; 
+const API_BASE = "http://localhost:5001/api";
 
 export default function App() {
-  const [token, setToken] = useState(null);
-  const [user, setUser] = useState(null);
-  const [loginUser, setLoginUser] = useState('');
-  const [loginPass, setLoginPass] = useState('');
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user_meta') || 'null'));
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
+  // Matrix Configuration Tabs
+  const [activeTab, setActiveTab] = useState('combined');
   const [events, setEvents] = useState([]);
-  const [currentCal, setCurrentCal] = useState('combined');
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const [exportWizardOpen, setExportWizardOpen] = useState(false);
-  const [selectedExportType, setSelectedExportType] = useState('kids-detailed');
-
+  // Quick Post Issue Form Layer
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('');
-  const [formEnd, setFormEnd] = useState('');
-  const [formDesc, setFormDesc] = useState('');
-  const [formDomain, setFormDomain] = useState('liam-life');
-
-  const [primaryLocation, setPrimaryLocation] = useState('School');
-  const [category, setCategory] = useState('Behavioural');
-  const [severity, setSeverity] = useState(0);
-
-  const [isMobile, setIsMobile] = useState(false);
+  const [formDescription, setFormDescription] = useState('');
+  const [formCalendar, setFormCalendar] = useState('kids-logs');
+  const [formSentiment, setFormSentiment] = useState('Neutral');
+  const [formSeverity, setFormSeverity] = useState('1');
 
   useEffect(() => {
-    setIsMobile(window.innerWidth < 1024);
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
-    window.addEventListener('resize', handleResize);
-    const savedToken = localStorage.getItem('matrix_auth_token');
-    const savedUser = localStorage.getItem('matrix_auth_user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    if (token) fetchEvents();
+  }, [token, activeTab]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setAuthError('');
     try {
-      const res = await fetch(`${BACKEND_API}/api/auth/login`, {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: loginUser, password: loginPass })
+        body: JSON.stringify({ username, password })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Authentication denied.");
-      localStorage.setItem('matrix_auth_token', data.token);
-      localStorage.setItem('matrix_auth_user', JSON.stringify(data.user));
+      if (!res.ok) throw new Error(data.error || "Authentication refused.");
+      
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user_meta', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-    } catch (err) { setAuthError(err.message); }
+    } catch (err) {
+      setAuthError(err.message);
+    }
   };
 
   const handleLogout = () => {
     localStorage.clear();
-    setToken(null);
+    setToken('');
     setUser(null);
+    setEvents([]);
   };
 
-  const fetchAllData = useCallback(async () => {
-    if (!token) return;
-    setIsLoading(true);
+  const fetchEvents = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${new Date().getTime()}`, {
+      const res = await fetch(`${API_BASE}/events?calendar=${activeTab}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setEvents(Array.isArray(data) ? data : []);
-    } catch (err) { 
-      console.error("Data Sync Failure:", err); 
-    } finally { 
-      setIsLoading(false); 
+      if (res.ok) setEvents(data);
+    } catch (err) {
+      console.error("Data ingestion failure:", err);
+    } finally {
+      setLoading(false);
     }
-  }, [currentCal, token]);
-
-  useEffect(() => { if (token) fetchAllData(); }, [fetchAllData, token]);
+  };
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
+    if (!formTitle || !formStart) return;
+
     try {
-      const payload = {
-        title: formTitle, start: formStart, end: formEnd || null, description: formDesc, calendar: formDomain,
-        metricSentiment: formDomain === 'kids-logs' ? category : null,
-        metricLocation: formDomain === 'kids-logs' ? primaryLocation : null,
-        metricSeverity: formDomain === 'kids-logs' ? parseInt(severity) : 0
-      };
-
-      const res = await fetch(`${BACKEND_API}/api/events`, {
+      const res = await fetch(`${API_BASE}/events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: formTitle,
+          start: new Date(formStart).toISOString(),
+          description: formDescription,
+          calendar: formCalendar,
+          metricSentiment: formSentiment,
+          metricSeverity: parseInt(formSeverity)
+        })
       });
-      if (res.ok) {
-        setIsModalOpen(false);
-        setFormTitle(''); setFormStart(''); setFormEnd(''); setFormDesc(''); setSeverity(0);
-        fetchAllData();
-      }
-    } catch (err) { console.error(err); }
-  };
 
-  const handleCopyToLifeHub = async (eventToCopy) => {
-    try {
-      const payload = {
-        title: `[Copy] ${eventToCopy.title}`,
-        start: eventToCopy.start,
-        end: eventToCopy.end || null,
-        description: eventToCopy.description || 'Copied cross-domain stream item.',
-        calendar: 'liam-life',
-        metricSentiment: null,
-        metricLocation: null,
-        metricSeverity: 0
-      };
-
-      const res = await fetch(`${BACKEND_API}/api/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-      
       if (res.ok) {
-        setSelectedEvent(null);
-        fetchAllData();
+        setFormTitle('');
+        setFormStart('');
+        setFormDescription('');
+        fetchEvents();
       }
     } catch (err) {
-      console.error("Copy Event Execution Failure:", err);
+      console.error("Post log thread block:", err);
     }
   };
 
-  const executePrintLayout = () => {
-    setExportWizardOpen(false);
-    setTimeout(() => { window.print(); }, 300);
-  };
-
-  const getKidsLogs = () => events.filter(e => e.calendar === 'kids-logs');
-  
-  const getNext7DaysEvents = () => {
-    const startRange = new Date();
-    const endRange = new Date();
-    endRange.setDate(startRange.getDate() + 7);
-    return events.filter(e => {
-      const dateVal = new Date(e.start);
-      return dateVal >= startRange && dateVal <= endRange;
-    });
-  };
-
-  const totalLogs = events.filter(e => e.calendar === 'kids-logs').length;
-  const concernLogs = events.filter(e => e.calendar === 'kids-logs' && (e.metricSentiment === 'Concern' || e.metricSentiment === 'Behavioural')).length;
-  const workLogs = events.filter(e => e.calendar === 'work').length;
-
   if (!token) {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#070a12', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui, sans-serif', padding: '20px' }}>
-        <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: '420px', background: '#0b1325', border: '1px solid #1a2942', padding: '40px', borderRadius: '24px' }}>
-          <h2 style={{ margin: '0 0 8px 0', color: '#00f0ff', fontWeight: '900', fontSize: '28px' }}>Security Access</h2>
-          <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 28px 0' }}>Matrix Node Verification</p>
-          {authError && <div style={{ background: 'rgba(255,0,85,0.1)', border: '1px solid #ff0055', color: '#ff4382', padding: '12px', borderRadius: '8px', marginBottom: '20px' }}>{authError}</div>}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#475569', marginBottom: '6px' }}>Identity Token ID</label>
-            <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '10px', color: '#fff' }} required />
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-100">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl">
+          <div className="flex items-center gap-3 mb-6 justify-center">
+            <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+              <Layers className="w-6 h-6 animate-pulse" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+              Unified Grid Node
+            </h1>
           </div>
-          <div style={{ marginBottom: '32px' }}>
-            <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#475569', marginBottom: '6px' }}>Private Pass-Key</label>
-            <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '10px', color: '#fff' }} required />
-          </div>
-          <button type="submit" style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', border: 'none', borderRadius: '12px', color: '#070a12', fontWeight: '800', cursor: 'pointer' }}>Authenticate</button>
-        </form>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Operator Handle</label>
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="LiamBaker" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Access Key Override</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="••••••••" />
+            </div>
+            {authError && <div className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">{authError}</div>}
+            <button type="submit" className="w-full bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg transition-all active:scale-[0.98]">Authorize Access</button>
+          </form>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#070a12', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      
-      <style>{`
-        .quantum-spinner { border: 4px solid rgba(0,240,255,0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: #00f0ff; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        @media print {
-          body, html, #__next { background: #fff !important; color: #000 !important; }
-          .no-print { display: none !important; }
-          .print-report-container { display: block !important; padding: 30px; background: #fff !important; color: #000 !important; }
-          table { width: 100%; border-collapse: collapse; margin-top: 18px; }
-          th, td { border: 1px solid #111; padding: 10px; text-align: left; font-size: 12px; color: #000 !important; }
-          th { background-color: #eaeaea !important; font-weight: bold; text-transform: uppercase; }
-        }
-        @media screen {
-          .print-report-container { display: none !important; }
-        }
-      `}</style>
-
-      {/* SIDEBAR PANEL */}
-      <div className="no-print" style={{ width: isMobile ? '100%' : '320px', background: '#0b1325', borderRight: '1px solid #1a2942', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: '18px', fontWeight: '900', margin: 0, color: '#00f0ff' }}>MATRIX GATEWAY</h1>
-            <p style={{ color: '#64748b', fontSize: '11px', margin: '2px 0 0 0', fontFamily: 'monospace' }}>SECURE_NODE // {user?.username}</p>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans pb-24 md:pb-0">
+      {/* Top Application Bar */}
+      <header className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50 px-4 py-4 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Layers className="w-6 h-6 text-indigo-400" />
+            <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">Dashboard Framework</span>
+            <span className="text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider font-bold">Online</span>
           </div>
-          <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid #1a2942', color: '#ff0055', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>EXIT</button>
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '6px' }}>System Array Feed</label>
-          <select value={currentCal} onChange={(e) => setCurrentCal(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: '600' }}>
-            <option value="combined">Combined Systems</option>
-            <option value="liam-life">Liam's Life Hub</option>
-            <option value="work">ATI Work Matrix</option>
-            <option value="zoe">Zoe's Calendar</option>
-            <option value="kids-logs">Kids Behaviour Logs</option>
-            <option value="public-gcal">Abington School Calendar</option>
-          </select>
-        </div>
-
-        <button onClick={() => { setFormDomain(currentCal === 'combined' || currentCal === 'public-gcal' ? 'liam-life' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer' }}>+ EXECUTE LOG INDEX</button>
-        <button onClick={() => setExportWizardOpen(true)} style={{ width: '100%', padding: '10px', background: '#111b2d', color: '#94a3b8', border: '1px solid #1a2942', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>📥 EXPORT STRATEGIC PDF</button>
-        <button onClick={() => setSidePanelOpen(!sidePanelOpen)} style={{ width: '100%', padding: '10px', background: '#070a12', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
-          {sidePanelOpen ? "◀ HIDE ANALYTICS DRAWER" : "▶ OPEN ANALYTICS DRAWER"}
-        </button>
-      </div>
-
-      {/* MAIN VIEWPORT - SEPARATION AND GCAL RENDER TARGET */}
-      <div className="no-print" style={{ flex: 1, padding: isMobile ? '12px' : '24px', display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-        <div style={{ flex: 1, padding: isMobile ? '12px' : '24px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px', display: 'flex', flexDirection: 'column' }}>
-          {isLoading ? (
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#00f0ff' }}>
-              <div className="quantum-spinner" style={{ marginRight: '10px' }}></div> RUNNING CHRONO SYNC INFRASTRUCTURE...
-            </div>
-          ) : (
-            <CalendarWrapper key={currentCal} events={events} isMobile={isMobile} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
-          )}
-        </div>
-      </div>
-
-      {/* ANALYTICS PANEL */}
-      {sidePanelOpen && (
-        <div className="no-print" style={{ width: isMobile ? '100%' : '360px', background: '#0b1325', borderLeft: '1px solid #1a2942', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flexShrink: 0 }}>
-          <div>
-            <h3 style={{ margin: '0 0 14px 0', fontSize: '14px', color: '#00f0ff', fontWeight: '800' }}>CRITICAL MEASURABLE KPIS</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div style={{ background: '#070a12', border: '1px solid #1a2942', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>TOTAL LOG entries</div>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#fff' }}>{totalLogs}</div>
-              </div>
-              <div style={{ background: '#070a12', border: '1px solid #1a2942', padding: '12px', borderRadius: '8px' }}>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>BEHAVIOURAL ALERTS</div>
-                <div style={{ fontSize: '24px', fontWeight: '900', color: '#ff0055' }}>{concernLogs}</div>
-              </div>
-            </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-slate-400 hidden sm:inline">User: <b className="text-slate-200 font-semibold">{user?.username}</b></span>
+            <button onClick={handleLogout} className="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors"><LogOut className="w-4 h-4" /></button>
           </div>
         </div>
-      )}
+      </header>
 
-      {/* PRINT CONTAINERS */}
-      <div className="print-report-container" style={{ color: '#000' }}>
-        {selectedExportType === 'kids-detailed' && (
-          <div>
-            <h1 style={{ borderBottom: '2px solid #000', paddingBottom: '6px', margin: 0 }}>Detailed Incident & Event Registry Log</h1>
-            <p style={{ margin: '4px 0 20px 0', fontSize: '13px', color: '#333' }}><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Timestamp Bounds</th>
-                  <th>Incident Context / Title</th>
-                  <th>Metric Category</th>
-                  <th>Primary Location</th>
-                  <th>Severity Index</th>
-                  <th>Factual Cross-Reference Observations</th>
-                </tr>
-              </thead>
-              <tbody>
-                {getKidsLogs().map(e => (
-                  <tr key={e.id}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(e.start).toLocaleString()}</td>
-                    <td><strong>{e.title}</strong></td>
-                    <td>{e.metricSentiment || 'Unclassified'}</td>
-                    <td>{e.metricLocation || 'Unspecified'}</td>
-                    <td style={{ fontWeight: 'bold' }}>Lv {e.metricSeverity || 0}</td>
-                    <td>{e.description || 'No supplementary data entered.'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {selectedExportType === 'next-week' && (
-          <div>
-            <h1 style={{ borderBottom: '2px solid #000', paddingBottom: '6px', margin: 0 }}>7-Day Lookahead Operational Horizon</h1>
-            <p style={{ margin: '4px 0 20px 0', fontSize: '13px', color: '#333' }}><strong>Horizon Timeline:</strong> Upcoming 7 Days Plan</p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Scheduled Time</th>
-                  <th>System Array Source</th>
-                  <th>Activity / Operation Title</th>
-                  <th>Descriptive Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {getNext7DaysEvents().map(e => (
-                  <tr key={e.id}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(e.start).toLocaleString()}</td>
-                    <td style={{ textTransform: 'uppercase', fontSize: '11px', fontWeight: 'bold' }}>{e.calendar}</td>
-                    <td><strong>{e.title}</strong></td>
-                    <td>{e.description || 'No descriptive details attached.'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {selectedExportType === 'highlights' && (
-          <div>
-            <h1 style={{ borderBottom: '2px solid #000', paddingBottom: '6px', margin: 0 }}>Calendar System Metrics & Highlights Overview</h1>
-            <div style={{ margin: '20px 0', border: '1px solid #111', padding: '16px', background: '#f5f5f5' }}>
-              <h3 style={{ margin: '0 0 10px 0' }}>Core KPI Metrics Summary</h3>
-              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', lineHeight: '1.6' }}>
-                <li><strong>Total Active Global Document Registry Items Matrixed:</strong> {events.length} system logs</li>
-                <li><strong>Total Family Activity / Behavior Logs Logged:</strong> {totalLogs} entries</li>
-                <li><strong>Critical Incident Flags Actively Counted:</strong> {concernLogs} warnings</li>
-                <li><strong>ATI Corporate Calibration Operations Tracked:</strong> {workLogs} items</li>
-              </ul>
+      {/* Main Framework Dashboard Grid */}
+      <main className="max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+        {/* Left Side Controller Column */}
+        <div className="space-y-6 lg:col-span-1">
+          {/* Desk Header Tabs Block (Desktop Navigation Only) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 hidden md:block shadow-md">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 px-1">Network Matrix Switcher</h3>
+            <div className="space-y-1">
+              {[
+                { id: 'combined', name: 'Combined Workspace', icon: Layers, count: events.length },
+                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: null },
+                { id: 'work', name: 'Work Operations', icon: Briefcase, count: null },
+                { id: 'school', name: 'School Calendars', icon: BookOpen, count: null },
+                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: null }
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
+                  <div className="flex items-center gap-3">
+                    <tab.icon className="w-4 h-4" />
+                    <span>{tab.name}</span>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
-        )}
-      </div>
 
-      {/* EXPORT CONFIGURATION MODAL */}
-      {exportWizardOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000, backdropFilter: 'blur(8px)' }}>
-          <div style={{ width: '100%', maxWidth: '480px', padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px' }}>
-            <h3 style={{ margin: '0 0 6px 0', color: '#00f0ff', fontSize: '18px' }}>DOCUMENT EXPORT ENGINE WIZARD</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 20px 0' }}>Configure structural format variables for layout generation.</p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#070a12', borderRadius: '8px', border: selectedExportType === 'kids-detailed' ? '1px solid #00f0ff' : '1px solid #1a2942', cursor: 'pointer' }}>
-                <input type="radio" name="exportOption" checked={selectedExportType === 'kids-detailed'} onChange={() => setSelectedExportType('kids-detailed')} />
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '14px', color: '#fff' }}>1. Detailed Incident & Event Logs</div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Full analytical matrix data breakdown including location identifiers and severity level values.</div>
-                </div>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#070a12', borderRadius: '8px', border: selectedExportType === 'next-week' ? '1px solid #00f0ff' : '1px solid #1a2942', cursor: 'pointer' }}>
-                <input type="radio" name="exportOption" checked={selectedExportType === 'next-week'} onChange={() => setSelectedExportType('next-week')} />
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '14px', color: '#fff' }}>2. Next Week's Operational Schedule</div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Filters timelines chronologically to generate a 7-day layout plan.</div>
-                </div>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#070a12', borderRadius: '8px', border: selectedExportType === 'highlights' ? '1px solid #00f0ff' : '1px solid #1a2942', cursor: 'pointer' }}>
-                <input type="radio" name="exportOption" checked={selectedExportType === 'highlights'} onChange={() => setSelectedExportType('highlights')} />
-                <div>
-                  <div style={{ fontWeight: '700', fontSize: '14px', color: '#fff' }}>3. Calendar Metrics & Highlights Overview</div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>High level metrics summary report containing active volume statistics.</div>
-                </div>
-              </label>
+          {/* Incident Logging / Event Creation Panel */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md">
+            <div className="flex items-center gap-2 mb-4">
+              <Plus className="w-5 h-5 text-indigo-400" />
+              <h2 className="text-lg font-bold">Log Event / Issue</h2>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button onClick={() => setExportWizardOpen(false)} style={{ padding: '10px 16px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>ABORT</button>
-              <button onClick={executePrintLayout} style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer' }}>GENERATE CERTIFIED PDF</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BASE EVENT MODAL FORM */}
-      {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, padding: '20px', boxSizing: 'border-box' }}>
-          <form onSubmit={handleCreateEvent} style={{ width: '100%', maxWidth: '600px', padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <h3 style={{ margin: 0, color: '#00f0ff', fontSize: '20px', borderBottom: '1px solid #1a2942', paddingBottom: '12px' }}>LOG TARGET METRIC ENTRY</h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+            <form onSubmit={handleCreateEvent} className="space-y-4">
               <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>METRIC CONTEXT SEGMENT</label>
-                <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ width: '100%', padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }}>
-                  <option value="liam-life">Liam's Life Hub</option>
-                  <option value="kids-logs">Kids Behaviour Logs</option>
-                  <option value="work">ATI Work Matrix</option>
-                  <option value="zoe">Zoe's Calendar</option>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Event Label</label>
+                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="e.g. Inset School Day or Parent Teacher Meeting" required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors" />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Target Layer Calendar</label>
+                <select value={formCalendar} onChange={e => setFormCalendar(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors">
+                  <option value="kids-logs">Child Logs (Internal)</option>
+                  <option value="zoe">Zoe's Stream</option>
+                  <option value="work">Work Operations</option>
+                  <option value="school">School (Local Override)</option>
+                  <option value="liam-life">Personal (Liam)</option>
                 </select>
               </div>
+
               <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>EVENT SUMMATION TITLE</label>
-                <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Timestamp Matrix</label>
+                <input type="datetime-local" value={formStart} onChange={e => setFormStart(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors" />
               </div>
-            </div>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+
               <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>STARTING BOUNDARY</label>
-                <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ width: '100%', padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Telemetry Severity Level</label>
+                <select value={formSeverity} onChange={e => setFormSeverity(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors">
+                  <option value="1">Level 1 - Informational / Standard Notice</option>
+                  <option value="2">Level 2 - Routine Actions Required</option>
+                  <option value="3">Level 3 - Critical Conflict Action Risk</option>
+                </select>
               </div>
+
               <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>TERMINAL BOUNDARY (OPTIONAL)</label>
-                <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ width: '100%', padding: '10px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} />
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Notes / Description Context</label>
+                <textarea rows="2" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Provide optional notes or background context..." className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors resize-none"></textarea>
               </div>
+
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl shadow transition-all active:scale-[0.99] flex items-center justify-center gap-2 text-sm">
+                <Plus className="w-4 h-4" /> Save to Network View
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Right Side Telemetry Feed Monitor Display Panel */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md flex flex-col min-h-[500px]">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-indigo-400" />
+                <h2 className="text-xl font-bold tracking-tight capitalize">{activeTab.replace('-', ' ')} Feed Stream</h2>
+              </div>
+              <span className="text-xs font-mono px-3 py-1 bg-slate-950 border border-slate-800 rounded-full text-slate-400">
+                Loaded items: {events.length}
+              </span>
             </div>
 
-            {formDomain === 'kids-logs' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(0,240,255,0.02)', border: '1px dashed #1a2942', padding: '16px', borderRadius: '12px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#00f0ff', marginBottom: '4px' }}>PRIMARY LOCATION</label>
-                    <select value={primaryLocation} onChange={(e) => setPrimaryLocation(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
-                      <option value="School">School</option>
-                      <option value="Home (Dad)">Home (Dad)</option>
-                      <option value="Home (Mum)">Home (Mum)</option>
-                    </select>
+            {/* Matrix Operational Loader Loop */}
+            {loading ? (
+              <div className="flex-1 flex items-center justify-center flex-col gap-3">
+                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm text-slate-400 font-mono">Running Dynamic Cache Parse...</p>
+              </div>
+            ) : events.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-slate-800 rounded-xl bg-slate-950/40">
+                <Clock className="w-10 h-10 text-slate-600 mb-3" />
+                <p className="text-slate-300 font-medium">No system entries found for this segment.</p>
+                <p className="text-xs text-slate-500 max-w-xs mt-1">If this tab relies on internal cache, confirm that your configuration strings are parsed correctly inside server variables.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pr-1">
+                {events.map((event, idx) => (
+                  <div key={event.id || idx} className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl hover:border-slate-700 transition-all shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden group">
+                    {/* Left color bar decorator mapping */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: event.color || '#6366f1' }}></div>
+                    
+                    <div className="space-y-1 pl-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-semibold text-slate-100 text-sm group-hover:text-white transition-colors">{event.title}</h4>
+                        {event.isExternal && (
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded">Live Feed</span>
+                        )}
+                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">{event.calendar}</span>
+                      </div>
+                      {event.description && (
+                        <p className="text-xs text-slate-400 font-normal line-clamp-2 max-w-xl">{event.description}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 sm:text-right pl-2 sm:pl-0">
+                      <div className="font-mono text-xs text-slate-400 space-y-0.5">
+                        <div className="font-bold text-slate-300">{new Date(event.start).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                        <div className="text-slate-500">{new Date(event.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</div>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#00f0ff', marginBottom: '4px' }}>REGISTRY CATEGORY</label>
-                    <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
-                      <option value="Behavioural">Behavioural Record</option>
-                      <option value="School">School Correspondence</option>
-                      <option value="Concern">Incident Concern Parameter</option>
-                      <option value="Emotional">Emotional State Update</option>
-                      <option value="Health">Medical / Health Note</option>
-                      <option value="Positive Event">Positive Milestone</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#00f0ff', marginBottom: '4px' }}>SEVERITY INDEX LEVEL (0-5)</label>
-                  <input type="number" min="0" max="5" value={severity} onChange={(e) => setSeverity(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }} />
-                </div>
+                ))}
               </div>
             )}
-
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>COMPREHENSIVE FACTUAL OBSERVATION DETAILS</label>
-              <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={4} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none' }} required />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-              <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 16px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '6px', cursor: 'pointer' }}>ABORT</button>
-              <button type="submit" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer' }}>COMMIT INDEX LOG</button>
-            </div>
-          </form>
+          </div>
         </div>
-      )}
+      </main>
 
-      {/* PREVIEW DETAILS POPUP PANEL */}
-      {selectedEvent && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', width: '320px', padding: '20px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '12px', zIndex: 9999, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)' }}>
-          <h4 style={{ margin: '0 0 6px 0', color: '#00f0ff', fontSize: '15px' }}>{selectedEvent.title}</h4>
-          <span style={{ display: 'inline-block', padding: '2px 6px', background: '#1e293b', borderRadius: '4px', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', marginBottom: '10px' }}>Domain: {selectedEvent.calendar}</span>
-          <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: '#94a3b8', lineHeight: '1.5' }}>{selectedEvent.description || 'No descriptive summary added.'}</p>
-          
-          {selectedEvent.calendar === 'kids-logs' && (
-            <div style={{ fontSize: '11px', background: '#070a12', padding: '8px', borderRadius: '6px', marginBottom: '14px', border: '1px solid #1a2942' }}>
-              <div><strong>Location:</strong> {selectedEvent.metricLocation || 'Unspecified'}</div>
-              <div><strong>Severity Assessment:</strong> Lv {selectedEvent.metricSeverity || 0}</div>
-            </div>
-          )}
-
-          {selectedEvent.calendar !== 'liam-life' && (
-            <button 
-              onClick={() => handleCopyToLifeHub(selectedEvent)}
-              style={{ width: '100%', padding: '8px', background: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px', fontWeight: '700', marginBottom: '8px' }}
-            >
-              📋 COPY TO LIFE HUB
+      {/* Sticky Bottom Navigation Module - Optimized for Mobile Viewports */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 px-2 py-2 flex items-center justify-around md:hidden z-50 shadow-2xl">
+        {[
+          { id: 'combined', label: 'All', icon: Layers },
+          { id: 'zoe', label: 'Zoe', icon: Heart },
+          { id: 'work', label: 'Work', icon: Briefcase },
+          { id: 'school', label: 'School', icon: BookOpen },
+          { id: 'kids-logs', label: 'Issues', icon: AlertTriangle }
+        ].map(tab => {
+          const IconComponent = tab.icon;
+          const isSelected = activeTab === tab.id;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-all min-w-[64px] ${isSelected ? 'text-indigo-400 font-bold bg-indigo-500/5' : 'text-slate-400 font-medium'}`}>
+              <IconComponent className={`w-5 h-5 ${isSelected ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+              <span className="text-[10px] tracking-wide">{tab.label}</span>
             </button>
-          )}
-
-          <button onClick={() => setSelectedEvent(null)} style={{ width: '100%', padding: '6px', background: '#1a2942', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>Dismiss Pane</button>
-        </div>
-      )}
-
+          );
+        })}
+      </nav>
     </div>
   );
 }
