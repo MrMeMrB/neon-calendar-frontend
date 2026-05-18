@@ -66,7 +66,7 @@ export default function App() {
     setKidsLogs([]);
   };
 
-  // Manually fetch each individual backend data node stream into its own bucket
+  // Fetch individual backend data streams and explicitly bind properties
   const fetchAllFeeds = async () => {
     setLoading(true);
     const headers = { 'Authorization': `Bearer ${token}` };
@@ -79,9 +79,17 @@ export default function App() {
       const resWork = await fetch(`${API_BASE}/events?calendar=work`, { headers });
       if (resWork.ok) setWorkEvents(await resWork.json());
 
-      // 3. Fetch School direct stream (This pulls the iCal cache natively)
+      // 3. Fetch School stream & bind 'school' context properties explicitly
       const resSchool = await fetch(`${API_BASE}/events?calendar=school`, { headers });
-      if (resSchool.ok) setSchoolEvents(await resSchool.json());
+      if (resSchool.ok) {
+        const schoolData = await resSchool.json();
+        const normalizedSchool = schoolData.map((event, index) => ({
+          ...event,
+          id: event.id || `school-native-id-${index}`,
+          calendar: 'school' // Guarantees UI mapping rules align perfectly
+        }));
+        setSchoolEvents(normalizedSchool);
+      }
 
       // 4. Fetch Kids internal logger entries
       const resLogs = await fetch(`${API_BASE}/events?calendar=kids-logs`, { headers });
