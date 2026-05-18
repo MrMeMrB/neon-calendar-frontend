@@ -62,14 +62,12 @@ export default function App() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Standard Form Metric States
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('');
   const [formEnd, setFormEnd] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formDomain, setFormDomain] = useState('combined');
 
-  // Kids Behavioral Custom Analytics Metrics States
   const [metricSentiment, setMetricSentiment] = useState('Neutral');
   const [metricLocation, setMetricLocation] = useState('at home');
   const [metricSeverity, setMetricSeverity] = useState('2');
@@ -87,6 +85,7 @@ export default function App() {
   }, []);
 
   const fetchAllData = async () => {
+    setIsLoading(true); // Turn on loading states briefly to let DOM refresh cleanly
     try {
       const t = new Date().getTime();
       const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${t}`);
@@ -166,17 +165,10 @@ export default function App() {
     } catch (err) {}
   };
 
-  // KPI Metric Data Calculations
   const totalLogs = events.filter(e => e.calendar === 'kids-logs').length;
   const negativeLogs = events.filter(e => e.calendar === 'kids-logs' && e.metricSentiment === 'Negative').length;
 
-  if (!hasMounted || isLoading) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', width: '100vw', justifyContent: 'center', alignItems: 'center', background: '#070a12' }}>
-        <div style={{ width: '60px', height: '60px', border: '4px solid #111b2d', borderTopColor: '#00f0ff', borderRadius: '50%', animation: 'spin 0.8s infinite linear' }} />
-      </div>
-    );
-  }
+  if (!hasMounted) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#070a12', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
@@ -199,9 +191,8 @@ export default function App() {
           </select>
         </div>
 
-        <button onClick={() => { setFormDomain(currentCal === 'combined' ? 'kids-logs' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Log Manual Entry</button>
+        <button onClick={() => { setFormDomain(currentCal === 'combined' ? 'liam-life' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Log Manual Entry</button>
 
-        {/* BEHAVIOURAL SUMMARY MATRIX METRICS SECTION */}
         {currentCal === 'kids-logs' && (
           <div style={{ padding: '20px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '14px' }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '12px', textTransform: 'uppercase', color: '#ec4899', letterSpacing: '0.5px' }}>Behavioural KPI Summary</h4>
@@ -220,9 +211,16 @@ export default function App() {
       </div>
 
       {/* CALENDAR BLOCK VIEW */}
-      <div style={{ flex: 1, padding: isMobile ? '12px' : '36px', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, padding: isMobile ? '12px' : '36px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <div style={{ flex: 1, padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
-          <CalendarWrapper events={events} isMobile={isMobile} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
+          {isLoading ? (
+            <div style={{ display: 'flex', height: '100%', width: '100%', justifyContent: 'center', alignItems: 'center', color: '#64748b' }}>
+              <div style={{ width: '40px', height: '40px', border: '3px solid #111b2d', borderTopColor: '#00f0ff', borderRadius: '50%', animation: 'spin 0.8s infinite linear' }} />
+            </div>
+          ) : (
+            /* FIX: Passing unique currentCal string key triggers immediate state teardown and build cycle */
+            <CalendarWrapper key={currentCal} events={events} isMobile={isMobile} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
+          )}
         </div>
       </div>
 
@@ -263,7 +261,7 @@ export default function App() {
         </div>
       )}
 
-      {/* METRIC MANUAL ENTRY MODAL FORM CONTAINER */}
+      {/* METRIC MANUAL ENTRY MODAL */}
       {isModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, backdropFilter: 'blur(8px)' }}>
           <div style={{ width: '100%', maxWidth: '520px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
@@ -284,7 +282,6 @@ export default function App() {
                 <option value="zoe">Zoe Hub</option>
               </select>
 
-              {/* DYNAMIC METRIC LOGGER EXCLUSIVELY TRIGGERED FOR KIDS-LOGS */}
               {formDomain === 'kids-logs' && (
                 <div style={{ padding: '16px', background: '#070a12', borderRadius: '10px', border: '1px solid #ec4899', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#ec4899', fontWeight: '800' }}>Behaviour Data Parameters</span>
