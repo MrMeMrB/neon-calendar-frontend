@@ -1,13 +1,14 @@
 import React from 'react';
 
 export default function Sidebar({ currentView, setCurrentView }) {
+  // --- FIXED ALIGNMENT: LINKS MUST EXPLICITLY MATCH BACKEND DOMAINS ---
   const links = [
     { id: 'combined', label: '🎛️ Master Hub (All)', color: '#38bdf8' },
-    { id: 'liam', label: '👨 Liam\'s Life', color: '#10b981' },
+    { id: 'liam-life', label: '👨 Liam\'s Life', color: '#10b981' },
     { id: 'work', label: '💼 ATI Work', color: '#818cf8' },
     { id: 'zoe', label: '😈 Zoe\'s Schedule', color: '#f43f5e' },
     { id: 'kids-logs', label: '🧬 Kid Related Logs', color: '#ec4899' },
-    { id: 'family', label: '🏡 Family & Kids', color: '#f59e0b' }
+    { id: 'school', label: '🏫 Abington School Calendar', color: '#f59e0b' } 
   ];
 
   return (
