@@ -76,10 +76,8 @@ export default function Home() {
   }, [BACKEND_API]);
 
   const handleDateClick = (arg) => {
-    // Automatically pre-fill the clicked date format seamlessly
     const clickedDate = arg.dateStr + "T09:00";
     setManualStart(clickedDate);
-    // Default log channel context matches current filter selection
     setManualChannel(currentCalendar === 'combined' ? 'work' : currentCalendar);
     setIsModalOpen(true);
   };
@@ -89,6 +87,7 @@ export default function Home() {
     if (!manualTitle || !manualStart) return alert("Title and start time are required.");
     try {
       const res = await fetch(`${BACKEND_API}/api/events`, {
+        style: { display: 'none' }, // legacy layout safeguard
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -189,7 +188,6 @@ export default function Home() {
     } catch (err) { console.error(err); } finally { setIsLearning(false); }
   };
 
-  // Upgraded Clone Logic: Clones item to target instead of destructive moving
   const handleRouteCloneTransfer = async () => {
     if (!selectedEvent) return;
     setIsRouting(true);
@@ -214,7 +212,6 @@ export default function Home() {
     } catch (err) { console.error(err); } finally { setIsRouting(false); }
   };
 
-  // PDF Engine Trigger
   const triggerPdfExport = async () => {
     setIsExporting(true);
     try {
@@ -234,7 +231,6 @@ export default function Home() {
     } catch (err) { console.error(err); } finally { setIsExporting(false); }
   };
 
-  // Single Pass Low Token Cost Image Text Extractor Process
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -323,6 +319,13 @@ export default function Home() {
               height="auto" 
               dateClick={handleDateClick}
               eventClick={handleEventClick}
+              eventDataTransform={(eventData) => {
+                return {
+                  ...eventData,
+                  start: eventData.start_time || eventData.start,
+                  end: eventData.end_time || eventData.end
+                };
+              }}
               headerToolbar={{
                 left: 'prev,next today',
                 center: 'title',
