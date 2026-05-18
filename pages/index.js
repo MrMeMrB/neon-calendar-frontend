@@ -79,7 +79,7 @@ export default function App() {
         setLiamLifeEvents(rawFeedData.filter(e => e.domain === 'internal' || e.calendar === 'liam-life'));
         setSchoolEvents(rawFeedData.filter(e => e.domain === 'school' || e.calendar.includes('school')));
       }
-    } catch (err) { console.error("Database connection fault:", err); }
+    } catch (err) { console.error("Database sync down:", err); }
     finally { setLoading(false); }
   };
 
@@ -99,18 +99,18 @@ export default function App() {
         fetchAllFeeds();
         setActivePage('dashboard');
       }
-    } catch (err) { console.error("Event pipeline blocked:", err); }
+    } catch (err) { console.error("Event inject error:", err); }
   };
 
   const handleDeleteEvent = async (id) => {
-    if (!window.confirm("Purge event record irreversibly from server database?")) return;
+    if (!window.confirm("Purge event record irreversibly from database?")) return;
     try {
       const res = await fetch(`${API_BASE}/events/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) fetchAllFeeds();
-    } catch (err) { console.error("Deletion route failed:", err); }
+    } catch (err) { console.error("Deletion pathway blocked:", err); }
   };
 
   const handleDownloadPDF = async () => {
@@ -118,7 +118,7 @@ export default function App() {
       const response = await fetch(`${API_BASE}/reports/pdf`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error("Report generation processing failed.");
+      if (!response.ok) throw new Error("Report generation processing dropped.");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -157,7 +157,7 @@ export default function App() {
         <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-indigo-400 to-sky-400 bg-clip-text text-transparent">GridNode Framework</h1>
-            <p className="text-xs text-slate-400 font-medium tracking-wide uppercase">Core Management Access System</p>
+            <p className="text-xs text-slate-400 font-medium tracking-wide uppercase">Core System Identity Access</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -187,7 +187,7 @@ export default function App() {
             <div>
               <span className="font-bold text-base block tracking-tight">GridNode Terminal</span>
               <span className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Database Systems Live
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Systems Secured & Live
               </span>
             </div>
           </div>
@@ -240,12 +240,12 @@ export default function App() {
                   {loading ? (
                     <div className="flex-1 flex flex-col items-center justify-center gap-2">
                       <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                      <p className="text-xs font-mono text-slate-500">Processing live cache...</p>
+                      <p className="text-xs font-mono text-slate-500">Syncing channels...</p>
                     </div>
                   ) : displayEvents.length === 0 ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-950/30 border border-dashed border-slate-800 rounded-2xl">
                       <Clock className="w-8 h-8 text-slate-700 mb-2" />
-                      <p className="text-xs font-medium text-slate-400">No logs present on this metric vector filter.</p>
+                      <p className="text-xs font-medium text-slate-400">No active tracking structures inside this vector category.</p>
                     </div>
                   ) : (
                     <div className="space-y-3 overflow-y-auto max-h-[600px] pr-1">
@@ -276,9 +276,9 @@ export default function App() {
 
               <div className="lg:col-span-1 space-y-6">
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg space-y-3">
-                  <h3 className="text-xs font-bold uppercase font-mono text-indigo-400 tracking-wider flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" /> High Horizon Alerts (72h)</h3>
+                  <h3 className="text-xs font-bold uppercase font-mono text-indigo-400 tracking-wider flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" /> Upcoming Window (72h)</h3>
                   {urgentHorizonEvents.length === 0 ? (
-                    <p className="text-[11px] text-slate-500 italic bg-slate-950 p-3 rounded-xl border border-slate-800/40">Horizon stable.</p>
+                    <p className="text-[11px] text-slate-500 italic bg-slate-950 p-3 rounded-xl border border-slate-800/40">Horizon clear.</p>
                   ) : (
                     <div className="space-y-2">
                       {urgentHorizonEvents.map((rem, i) => (
@@ -293,7 +293,7 @@ export default function App() {
 
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-lg space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-slate-300 flex items-center gap-1.5"><CheckSquare className="w-3.5 h-3.5" /> Quick Execution Stack</h3>
+                    <h3 className="text-xs font-bold uppercase font-mono tracking-wider text-slate-300 flex items-center gap-1.5"><CheckSquare className="w-3.5 h-3.5" /> Action Items</h3>
                   </div>
                   <div className="space-y-1.5">
                     {todos.slice(0, 3).map(todo => (
@@ -314,19 +314,19 @@ export default function App() {
           <div className="max-w-2xl mx-auto bg-slate-900 border border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
             <div className="border-b border-slate-800 pb-3">
               <h2 className="text-xl font-black tracking-tight flex items-center gap-2"><Plus className="w-5 h-5 text-indigo-400" /> Log Registry Entry</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Inject verified track items straight through custom internal database streams.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Inject verified tracking items straight into custom system channels.</p>
             </div>
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Event Label Header</label>
-                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="e.g. Work Ops Task Metric" required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500" />
+                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="e.g. Work Session Diagnostic" required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Target Destination Stream</label>
                   <select value={formCalendar} onChange={e => setFormCalendar(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none">
-                    <option value="work">Corporate Operations Feed (Work)</option>
-                    <option value="zoe">Zoe's Main Sync Stream</option>
+                    <option value="work">Corporate Operations (Work)</option>
+                    <option value="zoe">Zoe's Stream</option>
                     <option value="kids-logs">Child Logs (Internal Matrix Tracker)</option>
                     <option value="liam-life">Liam's Core Life Actions</option>
                   </select>
@@ -338,11 +338,11 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Extended Descriptive Logs</label>
-                <textarea rows="4" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Provide contextual parameters explicitly..." className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none resize-none"></textarea>
+                <textarea rows="4" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Provide parameter contexts explicitly..." className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none resize-none"></textarea>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setActivePage('dashboard')} className="w-1/3 bg-slate-950 border border-slate-800 text-slate-400 font-semibold py-3 rounded-xl text-sm">Cancel</button>
-                <button type="submit" className="w-2/3 bg-indigo-600 text-white font-semibold py-3 rounded-xl text-sm shadow-lg hover:bg-indigo-500 transition-all">Commit Entry to Core Database</button>
+                <button type="submit" className="w-2/3 bg-indigo-600 text-white font-semibold py-3 rounded-xl text-sm shadow-lg hover:bg-indigo-500 transition-all">Commit Entry to Database</button>
               </div>
             </form>
           </div>
@@ -351,8 +351,8 @@ export default function App() {
         {activePage === 'todos' && (
           <div className="max-w-2xl mx-auto bg-slate-900 border border-slate-800/80 rounded-3xl p-6 shadow-2xl space-y-6">
             <div>
-              <h2 className="text-xl font-black tracking-tight flex items-center gap-2"><CheckSquare className="w-5 h-5 text-indigo-400" /> System Action Item Checklist</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Manage custom execution scripts locally outside tracking timelines.</p>
+              <h2 className="text-xl font-black tracking-tight flex items-center gap-2"><CheckSquare className="w-5 h-5 text-indigo-400" /> Action Checklist</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Manage custom operational targets locally outside core database limits.</p>
             </div>
             <form onSubmit={addTodo} className="flex gap-2">
               <input type="text" value={newTodo} onChange={e => setNewTodo(e.target.value)} placeholder="Add new actionable target entry..." className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 text-slate-200" />
@@ -360,7 +360,7 @@ export default function App() {
             </form>
             <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
               {todos.length === 0 ? (
-                <p className="text-xs text-slate-500 italic p-4 text-center">Active task configuration layers completely empty.</p>
+                <p className="text-xs text-slate-500 italic p-4 text-center">Checklist layers currently empty.</p>
               ) : (
                 todos.map(todo => (
                   <div key={todo.id} className="flex items-center justify-between p-3.5 bg-slate-950 border border-slate-800/60 rounded-xl gap-3">
