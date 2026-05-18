@@ -30,13 +30,21 @@ const CalendarWrapper = dynamic(() => Promise.all([
             end: info.event.endStr,
             description: props.description,
             calendar: props.calendar,
-            isExternal: props.isExternal
+            isExternal: props.isExternal,
+            metricSentiment: props.metricSentiment,
+            metricLocation: props.metricLocation,
+            metricSeverity: props.metricSeverity
           });
         }}
         eventContent={(info) => {
+          const isKidsLog = info.event.extendedProps.calendar === 'kids-logs';
+          const sent = info.event.extendedProps.metricSentiment;
+          const icon = isKidsLog ? (sent === 'Negative' ? '🔴 ' : sent === 'Neutral' ? '🟡 ' : '🟢 ') : '';
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 6px', fontSize: '12px', color: '#fff', overflow: 'hidden', background: 'rgba(7,10,18,0.4)', borderRadius: '6px', borderLeft: `3px solid ${info.event.backgroundColor || '#64748b'}` }}>
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '600' }}>{info.event.title}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '3px 6px', fontSize: '12px', color: '#fff', overflow: 'hidden', background: 'rgba(7,10,18,0.4)', borderRadius: '6px', borderLeft: `3px solid ${info.event.backgroundColor || '#64748b'}` }}>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '600' }}>
+                {icon}{info.event.title}
+              </span>
             </div>
           );
         }}
@@ -54,16 +62,19 @@ export default function App() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Local Entry State Variables
+  // Standard Form Metric States
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('');
   const [formEnd, setFormEnd] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formDomain, setFormDomain] = useState('combined');
 
-  // Cross-Calendar Injection Route Selector
-  const [routeTarget, setRouteTarget] = useState('kids-logs');
-  
+  // Kids Behavioral Custom Analytics Metrics States
+  const [metricSentiment, setMetricSentiment] = useState('Neutral');
+  const [metricLocation, setMetricLocation] = useState('at home');
+  const [metricSeverity, setMetricSeverity] = useState('2');
+
+  const [routeTarget, setRouteTarget] = useState('liam-life');
   const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -82,7 +93,7 @@ export default function App() {
       const data = await res.json();
       if (Array.isArray(data)) setEvents(data);
     } catch (err) {
-      console.error("Link dropped:", err);
+      console.error("Link sync dropped:", err);
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +142,7 @@ export default function App() {
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    if (!formTitle || !formStart) return alert("Fields required.");
+    if (!formTitle || !formStart) return alert("Required context values missing.");
     try {
       const res = await fetch(`${BACKEND_API}/api/events`, {
         method: 'POST',
@@ -141,7 +152,10 @@ export default function App() {
           start: formStart,
           end: formEnd || null,
           description: formDesc,
-          calendar: formDomain
+          calendar: formDomain,
+          metricSentiment: formDomain === 'kids-logs' ? metricSentiment : null,
+          metricLocation: formDomain === 'kids-logs' ? metricLocation : null,
+          metricSeverity: formDomain === 'kids-logs' ? metricSeverity : 0
         })
       });
       if (res.ok) {
@@ -151,6 +165,10 @@ export default function App() {
       }
     } catch (err) {}
   };
+
+  // KPI Metric Data Calculations
+  const totalLogs = events.filter(e => e.calendar === 'kids-logs').length;
+  const negativeLogs = events.filter(e => e.calendar === 'kids-logs' && e.metricSentiment === 'Negative').length;
 
   if (!hasMounted || isLoading) {
     return (
@@ -174,34 +192,31 @@ export default function App() {
           <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '10px' }}>Systems Grid Focus Filter</label>
           <select value={currentCal} onChange={(e) => setCurrentCal(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff' }}>
             <option value="combined">Combined Calendar</option>
+            <option value="liam-life">Liam's Life Calendar</option>
             <option value="work">Work Calendar</option>
             <option value="zoe">Zoe Calendar</option>
-            <option value="family">Family Framework</option>
             <option value="kids-logs">Kids Behavioural Calendar</option>
           </select>
         </div>
 
-        <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Add Entry Metric</button>
+        <button onClick={() => { setFormDomain(currentCal === 'combined' ? 'kids-logs' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Log Manual Entry</button>
 
-        {/* AI STREAM REVIEW INDEX */}
-        <div>
-          <h3 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#475569', marginBottom: '12px', fontWeight: '800' }}>Pending Kids Anomalies</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
-            {events.filter(e => e.isUnverified).length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#475569', margin: 0, fontStyle: 'italic' }}>No anomalies flagged.</p>
-            ) : (
-              events.filter(e => e.isUnverified).map(ev => (
-                <div key={ev.id} style={{ padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', borderLeft: '4px solid #ffaa00' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '10px' }}>{ev.title}</div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => { setSelectedEvent(ev); setRouteTarget('kids-logs'); }} style={{ flex: 1, padding: '8px', background: '#00ff66', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer', color: '#070a12' }}>Route Module</button>
-                    <button onClick={() => handlePurgeExternal(ev.id)} style={{ flex: 1, padding: '8px', background: '#ff0055', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '800', cursor: 'pointer' }}>Purge</button>
-                  </div>
-                </div>
-              ))
-            )}
+        {/* BEHAVIOURAL SUMMARY MATRIX METRICS SECTION */}
+        {currentCal === 'kids-logs' && (
+          <div style={{ padding: '20px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '14px' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '12px', textTransform: 'uppercase', color: '#ec4899', letterSpacing: '0.5px' }}>Behavioural KPI Summary</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ background: '#0b1325', padding: '12px', borderRadius: '8px', border: '1px solid #1a2942' }}>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Total Events</div>
+                <div style={{ fontSize: '20px', fontWeight: '800', color: '#fff' }}>{totalLogs}</div>
+              </div>
+              <div style={{ background: '#0b1325', padding: '12px', borderRadius: '8px', border: '1px solid #1a2942' }}>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Negative Incidents</div>
+                <div style={{ fontSize: '20px', fontWeight: '800', color: '#ff0055' }}>{negativeLogs}</div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* CALENDAR BLOCK VIEW */}
@@ -211,23 +226,30 @@ export default function App() {
         </div>
       </div>
 
-      {/* INTERACTIVE COMPONENT MODAL INSPECTOR */}
+      {/* DETAILS INSPECTOR & TRIAGE ROUTER */}
       {selectedEvent && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, backdropFilter: 'blur(8px)' }}>
           <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
             <h2 style={{ margin: '0 0 10px 0', fontSize: '22px', fontWeight: '800' }}>{selectedEvent.title}</h2>
-            <p style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Current Domain context: {selectedEvent.calendar}</p>
+            <p style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Current Group context: {selectedEvent.calendar}</p>
+            
+            {selectedEvent.calendar === 'kids-logs' && selectedEvent.metricSentiment && (
+              <div style={{ display: 'flex', gap: '8px', margin: '12px 0', padding: '10px', background: '#070a12', borderRadius: '8px', border: '1px solid #1a2942', fontSize: '12px' }}>
+                <div><strong>Sentiment:</strong> {selectedEvent.metricSentiment}</div> | 
+                <div><strong>Location:</strong> {selectedEvent.metricLocation}</div> | 
+                <div><strong>Severity:</strong> Lvl {selectedEvent.metricSeverity}/5</div>
+              </div>
+            )}
+
             <p style={{ color: '#94a3b8', fontSize: '14px', margin: '16px 0 24px 0', lineHeight: '1.6' }}>{selectedEvent.description || "No supplemental details logged."}</p>
             
-            {/* CROSS-CALENDAR WORKFLOW COMPONENT UTILITY */}
             <div style={{ background: '#070a12', padding: '16px', borderRadius: '12px', border: '1px solid #1a2942', marginBottom: '24px' }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '8px' }}>Inject/Route Data To Alternative Workspace Sector</label>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '8px' }}>Move/Route This Event Into Core Management</label>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <select value={routeTarget} onChange={(e) => setRouteTarget(e.target.value)} style={{ flex: 1, padding: '10px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }}>
+                  <option value="liam-life">Liam's Life Calendar</option>
                   <option value="kids-logs">Kids Behavioural Calendar</option>
                   <option value="work">Work Calendar</option>
-                  <option value="zoe">Zoe Calendar</option>
-                  <option value="family">Family Framework</option>
                 </select>
                 <button onClick={handleRouteEvent} style={{ padding: '10px 16px', background: '#00f0ff', border: 'none', borderRadius: '8px', fontWeight: '800', color: '#070a12', cursor: 'pointer' }}>Execute Route</button>
               </div>
@@ -241,22 +263,61 @@ export default function App() {
         </div>
       )}
 
-      {/* MANUAL LOG CREATOR */}
+      {/* METRIC MANUAL ENTRY MODAL FORM CONTAINER */}
       {isModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, backdropFilter: 'blur(8px)' }}>
-          <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
-            <h3 style={{ margin: '0 0 20px 0', color: '#00f0ff' }}>Log System Entry Metric</h3>
+          <div style={{ width: '100%', maxWidth: '520px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#00f0ff', fontWeight: '800' }}>Log System Entry Metric</h3>
             <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <input type="text" placeholder="Entry Label Identity" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
-              <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
-              <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} />
+              
+              <input type="text" placeholder="Entry Title / Log Label" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
+              
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ flex: 1, padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
+                <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ flex: 1, padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} />
+              </div>
+
               <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }}>
-                <option value="work">Work Space Operations</option>
-                <option value="zoe">Zoe Allocation Hub</option>
-                <option value="family">Family Framework Grid</option>
+                <option value="liam-life">Liam's Life Calendar</option>
                 <option value="kids-logs">Kids Behavioural Calendar</option>
+                <option value="work">Work Space Operations</option>
+                <option value="zoe">Zoe Hub</option>
               </select>
-              <textarea placeholder="Log Summary Details..." value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none' }} />
+
+              {/* DYNAMIC METRIC LOGGER EXCLUSIVELY TRIGGERED FOR KIDS-LOGS */}
+              {formDomain === 'kids-logs' && (
+                <div style={{ padding: '16px', background: '#070a12', borderRadius: '10px', border: '1px solid #ec4899', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#ec4899', fontWeight: '800' }}>Behaviour Data Parameters</span>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Sentiment Value</label>
+                      <select value={metricSentiment} onChange={(e) => setMetricSentiment(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
+                        <option value="Negative">Negative Incident</option>
+                        <option value="Neutral">Neutral / Update</option>
+                        <option value="Positive">Positive Note</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Context Location</label>
+                      <select value={metricLocation} onChange={(e) => setMetricLocation(e.target.value)} style={{ width: '100%', padding: '8px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
+                        <option value="at school">At School</option>
+                        <option value="at home">At Home</option>
+                        <option value="handover">During Handover</option>
+                        <option value="external">Other Context</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '10px', color: '#64748b', marginBottom: '4px' }}>Impact Severity Level ({metricSeverity}/5)</label>
+                    <input type="range" min="1" max="5" value={metricSeverity} onChange={(e) => setMetricSeverity(e.target.value)} style={{ width: '100%', accentColor: '#ec4899' }} />
+                  </div>
+                </div>
+              )}
+
+              <textarea placeholder="Log summary descriptions, details or notes..." value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none' }} />
+              
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '12px 20px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px' }}>Cancel</button>
                 <button type="submit" style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800' }}>Inject Data</button>
