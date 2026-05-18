@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
-// Completely isolate FullCalendar and its plugins away from the top-level scope
+// Completely isolate FullCalendar dynamic evaluation matrix away from server-side scope
 const CalendarWrapper = dynamic(() => Promise.all([
   import('@fullcalendar/react'),
   import('@fullcalendar/daygrid'),
   import('@fullcalendar/timegrid'),
   import('@fullcalendar/interaction')
 ]).then(([FullCalendar, dayGrid, timeGrid, interaction]) => {
-  // Return a custom component wrapper that passes the plugins down cleanly
   return function Component({ events, isMobile, handleDateSelect, setSelectedEvent }) {
     return (
       <FullCalendar.default
@@ -74,8 +73,11 @@ export default function App() {
   const [formSentiment, setFormSentiment] = useState('neutral');
   
   const [isMobile, setIsMobile] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
 
+  // Safely manage layout metrics only after mounting to the DOM tree
   useEffect(() => {
+    setHasMounted(true);
     setIsMobile(window.innerWidth < 1024);
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
@@ -100,8 +102,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchAllData();
-  }, [currentCal]);
+    if (hasMounted) {
+      fetchAllData();
+    }
+  }, [currentCal, hasMounted]);
 
   const handleTriggerSync = async () => {
     setIsSyncing(true);
@@ -185,7 +189,8 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  if (isLoading) {
+  // Halt server-side markup generation completely until validation matches
+  if (!hasMounted || isLoading) {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', justifyContent: 'center', alignItems: 'center', background: '#070a12' }}>
         <div style={{ width: '60px', height: '60px', border: '4px solid #111b2d', borderTopColor: '#00f0ff', borderRadius: '50%', animation: 'spin 0.8s infinite linear' }} />
@@ -232,8 +237,8 @@ export default function App() {
                 <div key={ev.id} style={{ padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', borderLeft: '4px solid #ff0055' }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '10px' }}>{ev.title}</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => handleVerifyKid(ev.id, 'verified_kid')} style={{ flex: 1, padding: '8px', background: '#00ff66', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer' }}>Approve</button>
-                    <button onClick={() => handleVerifyKid(ev.id, 'blocked')} style={{ flex: 1, padding: '8px', background: '#ff0055', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '800', cursor: 'pointer' }}>Purge</button>
+                    <button type="button" onClick={() => handleVerifyKid(ev.id, 'verified_kid')} style={{ flex: 1, padding: '8px', background: '#00ff66', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer', color: '#070a12' }}>Approve</button>
+                    <button type="button" onClick={() => handleVerifyKid(ev.id, 'blocked')} style={{ flex: 1, padding: '8px', background: '#ff0055', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '800', cursor: 'pointer' }}>Purge</button>
                   </div>
                 </div>
               ))
@@ -345,4 +350,9 @@ export default function App() {
       `}</style>
     </div>
   );
+}
+
+// Bypasses static site collection entirely
+export async function getServerSideProps() {
+  return { props: {} };
 }
