@@ -7,7 +7,14 @@ const CalendarWrapper = dynamic(() => Promise.all([
   import('@fullcalendar/timegrid'),
   import('@fullcalendar/interaction')
 ]).then(([FullCalendar, dayGrid, timeGrid, interaction]) => {
-  return function Component({ events, isMobile, handleDateSelect, setSelectedEvent }) {
+  return function Component({ events, isMobile, handleDateSelect, setSelectedEvent, currentCal }) {
+    
+    // STRICT VISIBILITY FILTER: Only show events matching the selected sidebar calendar view
+    const filteredEvents = events.filter(event => {
+      if (currentCal === 'combined') return true; // Show everything if "Combined Systems" is active
+      return event.calendar === currentCal;       // Otherwise, strictly match 'work', 'zoe', 'liam-life', etc.
+    });
+
     return (
       <FullCalendar.default
         plugins={[dayGrid.default, timeGrid.default, interaction.default]}
@@ -17,7 +24,7 @@ const CalendarWrapper = dynamic(() => Promise.all([
           center: 'title', 
           right: isMobile ? 'listWeek,timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay' 
         }}
-        events={events}
+        events={filteredEvents}
         height="100%"
         selectable={true}
         select={handleDateSelect}
@@ -289,7 +296,14 @@ export default function App() {
           ) : (
             /* CALENDAR GRID FRAME LAYER */
             isLoading ? <div style={{ color: '#64748b' }}>Refreshing Feeds...</div> :
-            <CalendarWrapper key={currentCal} events={events} isMobile={isMobile} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
+            <CalendarWrapper 
+              key={currentCal} 
+              events={events} 
+              isMobile={isMobile} 
+              currentCal={currentCal} 
+              handleDateSelect={() => setIsModalOpen(true)} 
+              setSelectedEvent={setSelectedEvent} 
+            />
           )}
         </div>
       </div>
