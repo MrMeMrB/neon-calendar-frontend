@@ -1,24 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 
-// Dynamic FullCalendar loading container protecting SSR environments
 const CalendarWrapper = dynamic(() => Promise.all([
   import('@fullcalendar/react'),
   import('@fullcalendar/daygrid'),
   import('@fullcalendar/timegrid'),
   import('@fullcalendar/interaction')
 ]).then(([FullCalendar, dayGrid, timeGrid, interaction]) => {
-  return function Component({ events, isMobile, handleDateSelect, setSelectedEvent, currentCal }) {
-    
-    // RIGID CLIENT-SIDE DOMAIN FILTER (FIXES STREAM CLUMPING)
-    const filteredEvents = events.filter(event => {
-      if (currentCal === 'combined') return true;
-      if (currentCal === 'public-gcal') return event.calendar === 'public-gcal';
-      
-      // Allow local entries matching the calendar OR external live feed items injected into this stream
-      return event.calendar === currentCal || (event.isExternal && event.originCalendar === currentCal);
-    });
-
+  return function Component({ events, isMobile, handleDateSelect, setSelectedEvent }) {
     return (
       <FullCalendar.default
         plugins={[dayGrid.default, timeGrid.default, interaction.default]}
@@ -28,7 +17,7 @@ const CalendarWrapper = dynamic(() => Promise.all([
           center: 'title', 
           right: isMobile ? 'listWeek,timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay' 
         }}
-        events={filteredEvents}
+        events={events}
         height="100%"
         selectable={true}
         select={handleDateSelect}
@@ -40,7 +29,7 @@ const CalendarWrapper = dynamic(() => Promise.all([
             start: info.event.startStr || info.event.start, 
             end: info.event.endStr || info.event.end,
             description: props.description || '', 
-            calendar: props.calendar || currentCal, 
+            calendar: props.calendar || 'combined', 
             isExternal: props.isExternal || false,
             metricSentiment: props.metricSentiment, 
             metricLocation: props.metricLocation, 
@@ -94,18 +83,15 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sidePanelOpen, setSidePanelOpen] = useState(true);
 
-  // Export Wizard Option Selectors
   const [exportWizardOpen, setExportWizardOpen] = useState(false);
   const [selectedExportType, setSelectedExportType] = useState('kids-detailed');
 
-  // Form Base States
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('');
   const [formEnd, setFormEnd] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formDomain, setFormDomain] = useState('liam-life');
 
-  // Extended Matrix Controls
   const [primaryLocation, setPrimaryLocation] = useState('School');
   const [category, setCategory] = useState('Behavioural');
   const [severity, setSeverity] = useState(0);
@@ -153,36 +139,16 @@ export default function App() {
     if (!token) return;
     setIsLoading(true);
     try {
-      const apiRouteParam = currentCal === 'public-gcal' ? 'combined' : currentCal;
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${apiRouteParam}&t=${new Date().getTime()}`, {
+      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${new Date().getTime()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      let unifiedEvents = Array.isArray(data) ? data : [];
-
-      if (currentCal === 'combined' || currentCal === 'public-gcal') {
-        try {
-          const publicRes = await fetch("https://api.icsify.com/v1/feed?url=https://calendar.google.com/calendar/ical/c_ca05bb6f1b85733a8038889ae52245021dcf5f1253116eb7c88dd45745fa5965%40group.calendar.google.com/public/basic.ics");
-          const publicData = await publicRes.json();
-          
-          if (publicData && Array.isArray(publicData.events)) {
-            const formattedPublicEvents = publicData.events.map(ev => ({
-              id: ev.uid || Math.random().toString(36).substr(2, 9),
-              title: ev.summary || 'School Event',
-              start: ev.start,
-              end: ev.end || null,
-              description: ev.description || '',
-              calendar: 'public-gcal', 
-              backgroundColor: '#0284c7'
-            }));
-            unifiedEvents = [...unifiedEvents, ...formattedPublicEvents];
-          }
-        } catch (gcalErr) {
-          console.error("Abington Calendar stream sync bypass activated:", gcalErr);
-        }
-      }
-      setEvents(unifiedEvents);
-    } catch (err) { console.error(err); } finally { setIsLoading(false); }
+      setEvents(Array.isArray(data) ? data : []);
+    } catch (err) { 
+      console.error("Data Sync Failure:", err); 
+    } finally { 
+      setIsLoading(false); 
+    }
   }, [currentCal, token]);
 
   useEffect(() => { if (token) fetchAllData(); }, [fetchAllData, token]);
@@ -210,14 +176,13 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
-  // CLIENT METHOD TO COPIATE EXTERNAL CORRESPONDENCE OR OTHER EVENTS INTO LIAM-LIFE HUB
   const handleCopyToLifeHub = async (eventToCopy) => {
     try {
       const payload = {
         title: `[Copy] ${eventToCopy.title}`,
         start: eventToCopy.start,
         end: eventToCopy.end || null,
-        description: eventToCopy.description || 'Copied from system stream.',
+        description: eventToCopy.description || 'Copied cross-domain stream item.',
         calendar: 'liam-life',
         metricSentiment: null,
         metricLocation: null,
@@ -235,7 +200,7 @@ export default function App() {
         fetchAllData();
       }
     } catch (err) {
-      console.error("Failed to copy event to life hub matrix container:", err);
+      console.error("Copy Event Execution Failure:", err);
     }
   };
 
@@ -330,7 +295,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* MAIN VIEWPORT - KEY PROP FORCED RESET ACTIVATED HERE */}
+      {/* MAIN VIEWPORT - SEPARATION AND GCAL RENDER TARGET */}
       <div className="no-print" style={{ flex: 1, padding: isMobile ? '12px' : '24px', display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         <div style={{ flex: 1, padding: isMobile ? '12px' : '24px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px', display: 'flex', flexDirection: 'column' }}>
           {isLoading ? (
@@ -338,7 +303,7 @@ export default function App() {
               <div className="quantum-spinner" style={{ marginRight: '10px' }}></div> RUNNING CHRONO SYNC INFRASTRUCTURE...
             </div>
           ) : (
-            <CalendarWrapper key={currentCal} events={events} isMobile={isMobile} currentCal={currentCal} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
+            <CalendarWrapper key={currentCal} events={events} isMobile={isMobile} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
           )}
         </div>
       </div>
@@ -434,25 +399,6 @@ export default function App() {
                 <li><strong>ATI Corporate Calibration Operations Tracked:</strong> {workLogs} items</li>
               </ul>
             </div>
-            <h3>Recent Activity Feed Highlights Ledger</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Timeline Stamp</th>
-                  <th>Calendar Hub Domain</th>
-                  <th>Operational Title Context</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.slice(0, 20).map(e => (
-                  <tr key={e.id}>
-                    <td>{new Date(e.start).toLocaleString()}</td>
-                    <td style={{ textTransform: 'uppercase', fontSize: '10px' }}>{e.calendar}</td>
-                    <td>{e.title}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </div>
@@ -584,7 +530,6 @@ export default function App() {
             </div>
           )}
 
-          {/* DYNAMIC UTILITY LINK: TRANSFER REFERENCE ENTRY INTO LIAM-LIFE */}
           {selectedEvent.calendar !== 'liam-life' && (
             <button 
               onClick={() => handleCopyToLifeHub(selectedEvent)}
