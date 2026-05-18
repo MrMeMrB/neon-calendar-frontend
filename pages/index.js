@@ -10,10 +10,15 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
 
-  // Matrix Configuration Tabs
+  // Navigation Matrix State
   const [activeTab, setActiveTab] = useState('combined');
-  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Dedicated, explicit state data buckets
+  const [zoeEvents, setZoeEvents] = useState([]);
+  const [workEvents, setWorkEvents] = useState([]);
+  const [schoolEvents, setSchoolEvents] = useState([]);
+  const [kidsLogs, setKidsLogs] = useState([]);
 
   // Quick Post Issue Form Layer
   const [formTitle, setFormTitle] = useState('');
@@ -23,9 +28,12 @@ export default function App() {
   const [formSentiment, setFormSentiment] = useState('Neutral');
   const [formSeverity, setFormSeverity] = useState('1');
 
+  // Load all operational feeds cleanly on initialization
   useEffect(() => {
-    if (token) fetchEvents();
-  }, [token, activeTab]);
+    if (token) {
+      fetchAllFeeds();
+    }
+  }, [token]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -52,19 +60,35 @@ export default function App() {
     localStorage.clear();
     setToken('');
     setUser(null);
-    setEvents([]);
+    setZoeEvents([]);
+    setWorkEvents([]);
+    setSchoolEvents([]);
+    setKidsLogs([]);
   };
 
-  const fetchEvents = async () => {
+  // Manually fetch each individual backend data node stream into its own bucket
+  const fetchAllFeeds = async () => {
     setLoading(true);
+    const headers = { 'Authorization': `Bearer ${token}` };
     try {
-      const res = await fetch(`${API_BASE}/events?calendar=${activeTab}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) setEvents(data);
+      // 1. Fetch Zoe's direct stream
+      const resZoe = await fetch(`${API_BASE}/events?calendar=zoe`, { headers });
+      if (resZoe.ok) setZoeEvents(await resZoe.json());
+
+      // 2. Fetch Work direct stream
+      const resWork = await fetch(`${API_BASE}/events?calendar=work`, { headers });
+      if (resWork.ok) setWorkEvents(await resWork.json());
+
+      // 3. Fetch School direct stream (This pulls the iCal cache natively)
+      const resSchool = await fetch(`${API_BASE}/events?calendar=school`, { headers });
+      if (resSchool.ok) setSchoolEvents(await resSchool.json());
+
+      // 4. Fetch Kids internal logger entries
+      const resLogs = await fetch(`${API_BASE}/events?calendar=kids-logs`, { headers });
+      if (resLogs.ok) setKidsLogs(await resLogs.json());
+
     } catch (err) {
-      console.error("Data ingestion failure:", err);
+      console.error("Network terminal collection error:", err);
     } finally {
       setLoading(false);
     }
@@ -95,12 +119,24 @@ export default function App() {
         setFormTitle('');
         setFormStart('');
         setFormDescription('');
-        fetchEvents();
+        fetchAllFeeds(); // Refresh all buckets to keep dashboard consistent
       }
     } catch (err) {
       console.error("Post log thread block:", err);
     }
   };
+
+  // Determine exactly which dataset to display based on the selected tab
+  let displayEvents = [];
+  if (activeTab === 'zoe') displayEvents = zoeEvents;
+  else if (activeTab === 'work') displayEvents = workEvents;
+  else if (activeTab === 'school') displayEvents = schoolEvents;
+  else if (activeTab === 'kids-logs') displayEvents = kidsLogs;
+  else {
+    // Combined View merges everything together automatically
+    displayEvents = [...zoeEvents, ...workEvents, ...schoolEvents, ...kidsLogs]
+      .sort((a, b) => new Date(a.start) - new Date(b.start));
+  }
 
   if (!token) {
     return (
@@ -153,22 +189,27 @@ export default function App() {
       <main className="max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         {/* Left Side Controller Column */}
         <div className="space-y-6 lg:col-span-1">
-          {/* Desk Header Tabs Block (Desktop Navigation Only) */}
+          {/* Desk Header Tabs Block */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 hidden md:block shadow-md">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 px-1">Network Matrix Switcher</h3>
             <div className="space-y-1">
               {[
-                { id: 'combined', name: 'Combined Workspace', icon: Layers, count: events.length },
-                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: null },
-                { id: 'work', name: 'Work Operations', icon: Briefcase, count: null },
-                { id: 'school', name: 'School Calendars', icon: BookOpen, count: null },
-                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: null }
+                { id: 'combined', name: 'Combined Workspace', icon: Layers, count: zoeEvents.length + workEvents.length + schoolEvents.length + kidsLogs.length },
+                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: zoeEvents.length },
+                { id: 'work', name: 'Work Operations', icon: Briefcase, count: workEvents.length },
+                { id: 'school', name: 'School Calendars', icon: BookOpen, count: schoolEvents.length },
+                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: kidsLogs.length }
               ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'}`}>
                   <div className="flex items-center gap-3">
                     <tab.icon className="w-4 h-4" />
                     <span>{tab.name}</span>
                   </div>
+                  {tab.count !== null && (
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-mono ${activeTab === tab.id ? 'bg-indigo-700 text-white' : 'bg-slate-950 border border-slate-800 text-slate-400'}`}>
+                      {tab.count}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -183,7 +224,7 @@ export default function App() {
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Event Label</label>
-                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="e.g. Inset School Day or Parent Teacher Meeting" required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors" />
+                <input type="text" value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="e.g. Inset School Day" required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors" />
               </div>
               
               <div>
@@ -193,7 +234,6 @@ export default function App() {
                   <option value="zoe">Zoe's Stream</option>
                   <option value="work">Work Operations</option>
                   <option value="school">School (Local Override)</option>
-                  <option value="liam-life">Personal (Liam)</option>
                 </select>
               </div>
 
@@ -205,15 +245,15 @@ export default function App() {
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Telemetry Severity Level</label>
                 <select value={formSeverity} onChange={e => setFormSeverity(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors">
-                  <option value="1">Level 1 - Informational / Standard Notice</option>
-                  <option value="2">Level 2 - Routine Actions Required</option>
-                  <option value="3">Level 3 - Critical Conflict Action Risk</option>
+                  <option value="1">Level 1 - Informational</option>
+                  <option value="2">Level 2 - Routine Actions</option>
+                  <option value="3">Level 3 - Critical Conflict</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Notes / Description Context</label>
-                <textarea rows="2" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Provide optional notes or background context..." className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors resize-none"></textarea>
+                <textarea rows="2" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Provide optional notes..." className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-indigo-500 text-sm transition-colors resize-none"></textarea>
               </div>
 
               <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl shadow transition-all active:scale-[0.99] flex items-center justify-center gap-2 text-sm">
@@ -232,7 +272,7 @@ export default function App() {
                 <h2 className="text-xl font-bold tracking-tight capitalize">{activeTab.replace('-', ' ')} Feed Stream</h2>
               </div>
               <span className="text-xs font-mono px-3 py-1 bg-slate-950 border border-slate-800 rounded-full text-slate-400">
-                Loaded items: {events.length}
+                Loaded items: {displayEvents.length}
               </span>
             </div>
 
@@ -240,24 +280,17 @@ export default function App() {
             {loading ? (
               <div className="flex-1 flex items-center justify-center flex-col gap-3">
                 <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-sm text-slate-400 font-mono">Running Dynamic Cache Parse...</p>
+                <p className="text-sm text-slate-400 font-mono">Loading Data Feeds Directly...</p>
               </div>
-            ) : events.length === 0 ? (
+            ) : displayEvents.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-slate-800 rounded-xl bg-slate-950/40">
                 <Clock className="w-10 h-10 text-slate-600 mb-3" />
-                <p className="text-slate-300 font-medium">No system entries found for this segment.</p>
-                <p className="text-xs text-slate-500 max-w-xs mt-1">If this tab relies on internal cache, confirm that your configuration strings are parsed correctly inside server variables.</p>
+                <p className="text-slate-300 font-medium">No system entries found for this calendar stream.</p>
               </div>
             ) : (
-<div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pr-1">
-    {events
-      .filter(event => {
-        if (activeTab === 'combined') return true;
-        return String(event.calendar).toLowerCase() === String(activeTab).toLowerCase();
-      })
-      .map((event, idx) => (
+              <div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pr-1">
+                {displayEvents.map((event, idx) => (
                   <div key={event.id || idx} className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl hover:border-slate-700 transition-all shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden group">
-                    {/* Left color bar decorator mapping */}
                     <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: event.color || '#6366f1' }}></div>
                     
                     <div className="space-y-1 pl-2">
@@ -266,7 +299,7 @@ export default function App() {
                         {event.isExternal && (
                           <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded">Live Feed</span>
                         )}
-                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">{event.calendar}</span>
+                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">{event.calendar || activeTab}</span>
                       </div>
                       {event.description && (
                         <p className="text-xs text-slate-400 font-normal line-clamp-2 max-w-xl">{event.description}</p>
