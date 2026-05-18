@@ -1,8 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import FullCalendar to completely bypass Next.js Server-Side Rendering (SSR)
+const FullCalendarComponent = dynamic(
+  () => import('@fullcalendar/react'),
+  { ssr: false }
+);
+
+// Dynamically import plugins to prevent "document/window is not defined" server-side crashes
+const dayGridPlugin = dynamic(() => import('@fullcalendar/daygrid'), { ssr: false });
+const timeGridPlugin = dynamic(() => import('@fullcalendar/timegrid'), { ssr: false });
+const interactionPlugin = dynamic(() => import('@fullcalendar/interaction'), { ssr: false });
 
 // Linked to your live Render backend Web Service
 const BACKEND_API = "https://calendar-backend-dzdp.onrender.com"; 
@@ -26,13 +34,13 @@ export default function App() {
   
   // Safe default initialization for Next.js SSR
   const [isMobile, setIsMobile] = useState(false);
-  const calendarRef = useRef(null);
+  const [pluginsLoaded, setPluginsLoaded] = useState(false);
 
   useEffect(() => {
-    // Only checks window properties safely inside the client browser
     setIsMobile(window.innerWidth < 1024);
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
+    setPluginsLoaded(true);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -139,7 +147,7 @@ export default function App() {
     setIsModalOpen(true);
   };
 
-  if (isLoading) {
+  if (isLoading || !pluginsLoaded) {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', justifyContent: 'center', alignItems: 'center', background: '#070a12' }}>
         <div style={{ width: '60px', height: '60px', border: '4px solid #111b2d', borderTopColor: '#00f0ff', borderRadius: '50%', animation: 'spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite' }} />
@@ -161,7 +169,7 @@ export default function App() {
         <button 
           onClick={handleTriggerSync} 
           disabled={isSyncing} 
-          style={{ width: '100%', padding: '16px', background: isSyncing ? '#1e293b' : 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: isSyncing ? '#64748b' : '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800', fontSize: '14px', cursor: isSyncing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: isSyncing ? 'none' : '0 4px 20px rgba(0,240,255,0.25)', transition: 'transform 0.2s, cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}
+          style={{ width: '100%', padding: '16px', background: isSyncing ? '#1e293b' : 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: isSyncing ? '#64748b' : '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800', fontSize: '14px', cursor: isSyncing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: isSyncing ? 'none' : '0 4px 20px rgba(0,240,255,0.25)', transition: 'transform 0.2s' }}
         >
           {isSyncing && <div style={{ width: '14px', height: '14px', border: '2px solid #070a12', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />}
           {isSyncing ? "Syncing Grid Modules..." : "⚡ Force Sync Pipelines"}
@@ -177,7 +185,7 @@ export default function App() {
           </select>
         </div>
 
-        <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' }}>+ Manual Metric Log Entry</button>
+        <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Manual Metric Log Entry</button>
 
         <hr style={{ borderColor: '#1a2942', margin: 0 }} />
 
@@ -189,7 +197,7 @@ export default function App() {
               <p style={{ fontSize: '13px', color: '#475569', margin: 0, fontStyle: 'italic' }}>No pending stream anomalies flagged.</p>
             ) : (
               events.filter(e => e.isUnverified).map(ev => (
-                <div key={ev.id} style={{ padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', borderLeft: '4px solid #ff0055', animation: 'slideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+                <div key={ev.id} style={{ padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', borderLeft: '4px solid #ff0055' }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '10px', color: '#f1f5f9' }}>{ev.title}</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={() => handleVerifyKid(ev.id, 'verified_kid')} style={{ flex: 1, padding: '8px', background: '#00ff66', border: 'none', borderRadius: '6px', color: '#070a12', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>Approve</button>
@@ -212,7 +220,7 @@ export default function App() {
       {/* CORE CALENDAR GRID FRAME */}
       <div style={{ flex: 1, padding: isMobile ? '12px' : '36px', boxSizing: 'border-box', height: isMobile ? 'auto' : '100vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}>
-          <FullCalendar
+          <FullCalendarComponent
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView={isMobile ? 'timeGridDay' : 'dayGridMonth'}
             headerToolbar={{ left: 'prev,next today', center: 'title', right: isMobile ? 'timeGridDay' : 'dayGridMonth,timeGridWeek,timeGridDay' }}
@@ -253,11 +261,11 @@ export default function App() {
 
       {/* POPUP ACTION MODAL: DRILLDOWN EVENT INSPECTOR */}
       {selectedEvent && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)', animation: 'fadeIn 0.2s ease-out' }}>
-          <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box', animation: 'slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)' }}>
+          <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '20px' }}>
               <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', padding: '6px 12px', background: '#111b2d', border: '1px solid #1a2942', borderRadius: '8px', color: '#00f0ff', letterSpacing: '0.5px' }}>{selectedEvent.calendar} Domain</span>
-              <button onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px', transition: 'color 0.2s' }}>&times;</button>
+              <button onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
             </div>
             <h2 style={{ margin: '0 0 14px 0', fontSize: '24px', fontWeight: '800', color: '#fff' }}>{selectedEvent.title}</h2>
             <p style={{ color: '#94a3b8', fontSize: '15px', margin: '0 0 28px 0', lineHeight: '1.7' }}>{selectedEvent.description || "No alternative descriptive logs available inside this tracking block."}</p>
@@ -271,8 +279,8 @@ export default function App() {
 
       {/* POPUP ACTION MODAL: INJECT DATA METRIC */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)', animation: 'fadeIn 0.2s ease-out' }}>
-          <div style={{ width: '100%', maxWidth: '540px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box', animation: 'slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)' }}>
+          <div style={{ width: '100%', maxWidth: '540px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box' }}>
             <h3 style={{ margin: '0 0 24px 0', fontSize: '22px', fontWeight: '800', color: '#00f0ff' }}>Log System Entry Metric</h3>
             <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
@@ -323,8 +331,6 @@ export default function App() {
       
       <style>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .fc-theme-standard td, .fc-theme-standard th { border: 1px solid #111b2d !important; }
         .fc .fc-button-primary { background: #070a12 !important; border: 1px solid #1a2942 !important; color: #fff !important; font-weight: 700 !important; border-radius: 8px !important; text-transform: capitalize; padding: 8px 14px !important; }
         .fc .fc-button-primary:hover { background: #111b2d !important; border-color: #00f0ff !important; }
