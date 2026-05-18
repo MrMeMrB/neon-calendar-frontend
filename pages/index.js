@@ -28,12 +28,12 @@ export default function Home() {
 
   const BACKEND_API = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
 
-  // Explicit safety handler for targeted channel views
-  const fetchSavedEvents = async (targetView = currentCalendar) => {
+  // Always request the combined pool so we hold all live streams in state
+  const fetchSavedEvents = async () => {
     if (!BACKEND_API) return;
     try {
       const timestamp = new Date().getTime();
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${targetView}&t=${timestamp}`);
+      const res = await fetch(`${BACKEND_API}/api/events?calendar=combined&t=${timestamp}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setDbEvents(data);
@@ -55,12 +55,9 @@ export default function Home() {
     } catch (err) { console.error("Error reading scratchpad info:", err); }
   };
 
-  // Monitor target matrix changes seamlessly
+  // Pull baseline layout parameters on load
   useEffect(() => {
-    fetchSavedEvents(currentCalendar);
-  }, [currentCalendar]);
-
-  useEffect(() => {
+    fetchSavedEvents();
     fetchGeneralNotes();
   }, [BACKEND_API]);
 
@@ -82,8 +79,7 @@ export default function Home() {
       if (res.ok) {
         setManualTitle(""); setManualStart(""); setManualEnd(""); setManualDesc("");
         setIsModalOpen(false);
-        // Safety gap to let pool transactions finish processing
-        setTimeout(() => fetchSavedEvents(currentCalendar), 300);
+        setTimeout(() => fetchSavedEvents(), 300);
       }
     } catch (err) { console.error(err); }
   };
@@ -135,7 +131,6 @@ export default function Home() {
     if (!selectedEvent) return;
     setIsLearning(true);
 
-    // Optimistically hide from layout array before reload
     if (status === 'blocked') {
       setDbEvents(prev => prev.filter(ev => ev.id !== selectedEvent.id));
     }
@@ -148,7 +143,7 @@ export default function Home() {
       });
       if (res.ok) {
         setSelectedEvent(null);
-        setTimeout(() => fetchSavedEvents(currentCalendar), 400);
+        setTimeout(() => fetchSavedEvents(), 400);
       }
     } catch (err) { 
       console.error(err); 
@@ -161,7 +156,6 @@ export default function Home() {
     if (!selectedEvent) return;
     setIsRouting(true);
 
-    // Optimistically pull from current display scope grid
     setDbEvents(prev => prev.filter(ev => ev.id !== selectedEvent.id));
 
     try {
@@ -180,7 +174,7 @@ export default function Home() {
       });
       if (res.ok) {
         setSelectedEvent(null);
-        setTimeout(() => fetchSavedEvents(currentCalendar), 400);
+        setTimeout(() => fetchSavedEvents(), 400);
       }
     } catch (err) { 
       console.error(err); 
@@ -199,6 +193,11 @@ export default function Home() {
       })
       .sort((a, b) => new Date(a.start) - new Date(b.start));
   };
+
+  // Seamless client side segmentation filter
+  const displayedEvents = currentCalendar === 'combined' 
+    ? dbEvents 
+    : dbEvents.filter(ev => ev.calendar === currentCalendar);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#f8fafc', fontFamily: '-apple-system, sans-serif', display: 'flex', flexDirection: 'column' }}>
@@ -232,7 +231,7 @@ export default function Home() {
               key={currentCalendar} 
               plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]} 
               initialView="dayGridMonth" 
-              events={dbEvents} 
+              events={displayedEvents} 
               height="auto" 
               eventClick={handleEventClick}
               eventContent={(info) => {
@@ -265,6 +264,7 @@ export default function Home() {
               <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b', margin: '0 0 12px 0', letterSpacing: '0.05em' }}>🚨 Radar Reminders</h3>
               <h4 style={{ fontSize: '11px', color: '#f43f5e', margin: '8px 0 6px 0', textTransform: 'uppercase' }}>Next 24 Hours</h4>
               {getReminders(1).length === 0 ? <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 12px 0' }}>Clear horizon</p> : getReminders(1).map(e => <div key={e.id} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #1f2937', color: '#f8fafc' }}>• {e.title}</div>)}
+              {/* Force checklist logic context mapping onto current UI rendering layout */}
               <h4 style={{ fontSize: '11px', color: '#f59e0b', margin: '14px 0 6px 0', textTransform: 'uppercase' }}>This Week</h4>
               {getReminders(7).length === 0 ? <p style={{ fontSize: '12px', color: '#475569', margin: '0' }}>No active tracks</p> : getReminders(7).map(e => <div key={e.id} style={{ fontSize: '12px', padding: '6px 0', borderBottom: '1px solid #1f2937', color: '#cbd5e1' }}>• {e.title}</div>)}
             </div>
