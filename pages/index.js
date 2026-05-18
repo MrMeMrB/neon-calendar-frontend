@@ -144,17 +144,48 @@ export default function App() {
     setAdminViewActive(false);
   };
 
+  // UPDATED FUNCTION: Grabs internal system data + public Google calendar feed completely on the client side
   const fetchAllData = async () => {
     if (!token) return;
     setIsLoading(true);
     try {
+      // 1. Fetch data from your database backend
       const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${new Date().getTime()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      if (Array.isArray(data)) setEvents(data);
-    } catch (err) { console.error(err); }
-    finally { setIsLoading(false); }
+      let unifiedEvents = Array.isArray(data) ? data : [];
+
+      // 2. Fetch public calendar stream dynamically if Viewing Combined or explicitly Selected
+      if (currentCal === 'combined' || currentCal === 'public-gcal') {
+        try {
+          const publicRes = await fetch("https://api.icsify.com/v1/feed?url=https://calendar.google.com/calendar/ical/c_ca05bb6f1b85733a8038889ae52245021dcf5f1253116eb7c88dd45745fa5965%40group.calendar.google.com/public/basic.ics");
+          const publicData = await publicRes.json();
+          
+          if (publicData && Array.isArray(publicData.events)) {
+            const formattedPublicEvents = publicData.events.map(ev => ({
+              id: ev.uid || Math.random().toString(36).substr(2, 9),
+              title: ev.summary || 'Public Calendar Event',
+              start: ev.start,
+              end: ev.end || null,
+              description: ev.description || '',
+              calendar: 'public-gcal', 
+              backgroundColor: '#0284c7' // Distinct sky blue frame styling
+            }));
+            
+            unifiedEvents = [...unifiedEvents, ...formattedPublicEvents];
+          }
+        } catch (gcalErr) {
+          console.error("Public stream failed to parse, skipping feed overlay:", gcalErr);
+        }
+      }
+
+      setEvents(unifiedEvents);
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   useEffect(() => { if (token) fetchAllData(); }, [currentCal, token]);
@@ -251,6 +282,7 @@ export default function App() {
             <option value="work">ATI Work Matrix</option>
             <option value="zoe">Zoe's Calendar</option>
             <option value="kids-logs">Kids Behaviour Logs</option>
+            <option value="public-gcal">Shared Public Calendar</option> {/* UPDATED TOGGLE LINE */}
           </select>
         </div>
 
@@ -352,7 +384,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* DYNAMIC FORM SEGMENT RESTRUCTURING FOR COMPLIANT LEGAL REPOSITORIES */}
+            {/* DYNAMIC FORM SEGMENT RESTRUCTURING */}
             {formDomain === 'kids-logs' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(0,240,255,0.02)', border: '1px dashed #1a2942', padding: '16px', borderRadius: '12px', marginTop: '6px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -422,24 +454,24 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>VERIFIABLE EVIDENCE REFERENCING</label>
-                    <input type="text" placeholder="e.g. Email trace, audio note reference..." value={evidence} onChange={(e) => setEvidence(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                    <input type="text" placeholder="e.g. Email trace..." value={evidence} onChange={(e) => setEvidence(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>CORROBORATING WITNESSES</label>
-                    <input type="text" placeholder="e.g. Teacher, Transition Attendant..." value={witnesses} onChange={(e) => setWitnesses(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                    <input type="text" placeholder="e.g. Teacher..." value={witnesses} onChange={(e) => setWitnesses(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>REQUIRED LEGAL / ACTIONABLE FOLLOW-UP</label>
-                  <input type="text" placeholder="e.g. Escalate to legal counsel, notice to institution..." value={followUp} onChange={(e) => setFollowUp(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
+                  <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>REQUIRED ACTIONABLE FOLLOW-UP</label>
+                  <input type="text" placeholder="e.g. Escalate..." value={followUp} onChange={(e) => setFollowUp(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff', boxSizing: 'border-box' }} />
                 </div>
               </div>
             )}
 
             <div>
               <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px', fontWeight: '700' }}>COMPREHENSIVE FACTUAL OBSERVATION DETAILS</label>
-              <textarea placeholder="Input clean, unembellished descriptive data tracking. Include verbatim dialogue transcripts where available..." value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={4} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none', boxSizing: 'border-box' }} required />
+              <textarea placeholder="Input clean descriptive data tracking..." value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={4} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none', boxSizing: 'border-box' }} required />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '1px solid #1a2942', paddingTop: '16px', marginTop: '6px' }}>
@@ -457,28 +489,26 @@ export default function App() {
             <h2 style={{ margin: '0 0 4px 0', fontSize: '22px', color: '#fff', fontWeight: '900' }}>{selectedEvent.title}</h2>
             <p style={{ color: '#00f0ff', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 20px 0', fontFamily: 'monospace' }}>ARRAY ARCHIVE SOURCE // {selectedEvent.calendar === 'zoe' ? "Zoe's Calendar" : selectedEvent.calendar}</p>
             
-            <div style={{ background: '#070a12', padding: '16px', borderRadius: '8px', border: '1px solid #1a2942', marginBottom: '16px', color: '#94a3b8', fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-              <strong>Factual Transcript / Entry:</strong><br/>
-              {selectedEvent.description || "No supplemental descriptions archived."}
+            <div style={{ background: '#070a12', padding: '16px', borderRadius: '12px', border: '1px solid #1a2942', marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Factual Record Details</div>
+              <p style={{ fontSize: '14px', color: '#e2e8f0', margin: '8px 0 0 0', lineHeight: '1.6' }}>{selectedEvent.description || "No further baseline description details attached to this tracking entry."}</p>
             </div>
 
             {selectedEvent.calendar === 'kids-logs' && (
-              <div style={{ background: 'rgba(0,240,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px dashed #1a2942', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', marginBottom: '16px' }}>
-                <div><strong style={{ color: '#00f0ff' }}>Children Impacted:</strong> {selectedEvent.kidsInvolved || 'All'}</div>
-                <div><strong style={{ color: '#00f0ff' }}>Location Coordinate:</strong> {selectedEvent.primaryLocation}</div>
-                <div><strong style={{ color: '#00f0ff' }}>Context Framing:</strong> {selectedEvent.contextSituation}</div>
-                <div><strong style={{ color: '#00f0ff' }}>Filing Classification:</strong> {selectedEvent.category}</div>
-                {selectedEvent.childReaction && <div><strong style={{ color: '#64748b' }}>Child Manifestation:</strong> {selectedEvent.childReaction}</div>}
-                {selectedEvent.impactDuration && <div><strong style={{ color: '#64748b' }}>Impact Quantum:</strong> {selectedEvent.impactDuration}</div>}
-                {selectedEvent.evidence && <div><strong style={{ color: '#64748b' }}>Evidence Chain Reference:</strong> {selectedEvent.evidence}</div>}
-                {selectedEvent.witnesses && <div><strong style={{ color: '#64748b' }}>Attending Witnesses:</strong> {selectedEvent.witnesses}</div>}
-                {selectedEvent.followUp && <div><strong style={{ color: '#ff0055' }}>Actionable Tasking:</strong> {selectedEvent.followUp}</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'rgba(0,240,255,0.02)', border: '1px dashed #1a2942', padding: '16px', borderRadius: '12px', fontSize: '13px', marginBottom: '20px' }}>
+                <div><strong style={{ color: '#00f0ff' }}>Kids Involved:</strong> {selectedEvent.kidsInvolved}</div>
+                <div><strong style={{ color: '#00f0ff' }}>Location:</strong> {selectedEvent.primaryLocation}</div>
+                <div><strong style={{ color: '#00f0ff' }}>Context/Situation:</strong> {selectedEvent.contextSituation}</div>
+                <div><strong style={{ color: '#00f0ff' }}>Category:</strong> {selectedEvent.category}</div>
+                {selectedEvent.childReaction && <div><strong style={{ color: '#64748b' }}>Child Reaction:</strong> {selectedEvent.childReaction}</div>}
+                {selectedEvent.impactDuration && <div><strong style={{ color: '#64748b' }}>Impact/Duration:</strong> {selectedEvent.impactDuration}</div>}
+                {selectedEvent.evidence && <div><strong style={{ color: '#64748b' }}>Evidence Reference:</strong> {selectedEvent.evidence}</div>}
+                {selectedEvent.witnesses && <div><strong style={{ color: '#64748b' }}>Witnesses:</strong> {selectedEvent.witnesses}</div>}
+                {selectedEvent.followUp && <div><strong style={{ color: '#64748b' }}>Action Follow-Up:</strong> {selectedEvent.followUp}</div>}
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', borderTop: '1px solid #1a2942', paddingTop: '16px' }}>
-              <button onClick={() => setSelectedEvent(null)} style={{ padding: '10px 20px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>DISMISS MATRIX VIEW</button>
-            </div>
+            <button type="button" onClick={() => setSelectedEvent(null)} style={{ width: '100%', padding: '12px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>DISMISS INSPECTOR</button>
           </div>
         </div>
       )}
