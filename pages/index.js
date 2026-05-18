@@ -249,8 +249,13 @@ export default function App() {
                 <p className="text-xs text-slate-500 max-w-xs mt-1">If this tab relies on internal cache, confirm that your configuration strings are parsed correctly inside server variables.</p>
               </div>
             ) : (
-              <div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pr-1">
-                {events.map((event, idx) => (
+<div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pr-1">
+    {events
+      .filter(event => {
+        if (activeTab === 'combined') return true;
+        return String(event.calendar).toLowerCase() === String(activeTab).toLowerCase();
+      })
+      .map((event, idx) => (
                   <div key={event.id || idx} className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl hover:border-slate-700 transition-all shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden group">
                     {/* Left color bar decorator mapping */}
                     <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: event.color || '#6366f1' }}></div>
