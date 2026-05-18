@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 
+// Dynamic FullCalendar loading container protecting SSR environments
 const CalendarWrapper = dynamic(() => Promise.all([
   import('@fullcalendar/react'),
   import('@fullcalendar/daygrid'),
@@ -9,9 +10,13 @@ const CalendarWrapper = dynamic(() => Promise.all([
 ]).then(([FullCalendar, dayGrid, timeGrid, interaction]) => {
   return function Component({ events, isMobile, handleDateSelect, setSelectedEvent, currentCal }) {
     
+    // BACKEND-COMPATIBLE FILTER LAYER
     const filteredEvents = events.filter(event => {
       if (currentCal === 'combined') return true;
-      return event.calendar === currentCal;
+      if (currentCal === 'public-gcal') return event.calendar === 'public-gcal';
+      
+      // Allow both local records and live external iCal assets to pass through on isolated streams
+      return event.calendar === currentCal || (event.isExternal && currentCal === event.calendar);
     });
 
     return (
@@ -43,7 +48,7 @@ const CalendarWrapper = dynamic(() => Promise.all([
           if (isKidsLog) {
             if (cat === 'Concern' || cat === 'Behavioural') icon = '🔴 ';
             else if (cat === 'Emotional' || cat === 'Health') icon = '🟡 ';
-            else if (cat === 'Positive Event') icon = '🟢 ';
+            else if (cat === 'Positive Event' || cat === 'School') icon = '🟢 ';
             else icon = '🔷 ';
           }
           return (
@@ -57,12 +62,15 @@ const CalendarWrapper = dynamic(() => Promise.all([
       />
     );
   };
-}), { ssr: false, loading: () => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#00f0ff', padding: '40px', background: '#070a12', fontFamily: 'monospace' }}>
-    <div className="quantum-spinner"></div>
-    <span>INITIALIZING QUANTUM GRID INFRASTRUCTURE...</span>
-  </div>
-) });
+}), { 
+  ssr: false, 
+  loading: () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#00f0ff', padding: '40px', background: '#070a12', fontFamily: 'monospace' }}>
+      <div className="quantum-spinner"></div>
+      <span>INITIALIZING QUANTUM GRID INFRASTRUCTURE...</span>
+    </div>
+  ) 
+});
 
 const BACKEND_API = "https://calendar-backend-dzdp.onrender.com"; 
 
@@ -82,7 +90,7 @@ export default function App() {
 
   // Export Wizard Option Selectors
   const [exportWizardOpen, setExportWizardOpen] = useState(false);
-  const [selectedExportType, setSelectedExportType] = useState('kids-detailed'); // 'kids-detailed' | 'next-week' | 'highlights'
+  const [selectedExportType, setSelectedExportType] = useState('kids-detailed');
 
   // Form Base States
   const [formTitle, setFormTitle] = useState('');
@@ -92,7 +100,6 @@ export default function App() {
   const [formDomain, setFormDomain] = useState('liam-life');
 
   // Extended Matrix Controls
-  const [kidsInvolved, setKidsInvolved] = useState('All'); 
   const [primaryLocation, setPrimaryLocation] = useState('School');
   const [category, setCategory] = useState('Behavioural');
   const [severity, setSeverity] = useState(0);
@@ -136,11 +143,12 @@ export default function App() {
     setUser(null);
   };
 
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal === 'public-gcal' ? 'combined' : currentCal}&t=${new Date().getTime()}`, {
+      const apiRouteParam = currentCal === 'public-gcal' ? 'combined' : currentCal;
+      const res = await fetch(`${BACKEND_API}/api/events?calendar=${apiRouteParam}&t=${new Date().getTime()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -169,9 +177,9 @@ export default function App() {
       }
       setEvents(unifiedEvents);
     } catch (err) { console.error(err); } finally { setIsLoading(false); }
-  };
+  }, [currentCal, token]);
 
-  useEffect(() => { if (token) fetchAllData(); }, [currentCal, token]);
+  useEffect(() => { if (token) fetchAllData(); }, [fetchAllData, token]);
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
@@ -196,15 +204,13 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
-  // --- REPORT EXPORT DATA FILTERS ---
   const executePrintLayout = () => {
     setExportWizardOpen(false);
-    setTimeout(() => {
-      window.print();
-    }, 300);
+    setTimeout(() => { window.print(); }, 300);
   };
 
   const getKidsLogs = () => events.filter(e => e.calendar === 'kids-logs');
+  
   const getNext7DaysEvents = () => {
     const startRange = new Date();
     const endRange = new Date();
@@ -243,7 +249,6 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#070a12', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* GLOBAL HIGH-CONTRAST INK SAVER PRINT STYLING TARGET LAYER */}
       <style>{`
         .quantum-spinner { border: 4px solid rgba(0,240,255,0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: #00f0ff; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -261,7 +266,7 @@ export default function App() {
         }
       `}</style>
 
-      {/* SIDEBAR PANEL (HIDDEN DURING PRINT) */}
+      {/* SIDEBAR PANEL */}
       <div className="no-print" style={{ width: isMobile ? '100%' : '320px', background: '#0b1325', borderRight: '1px solid #1a2942', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -284,16 +289,13 @@ export default function App() {
         </div>
 
         <button onClick={() => { setFormDomain(currentCal === 'combined' || currentCal === 'public-gcal' ? 'liam-life' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer' }}>+ EXECUTE LOG INDEX</button>
-        
-        {/* OPENS NEW SELECTABLE WIZARD MODAL POPUP */}
         <button onClick={() => setExportWizardOpen(true)} style={{ width: '100%', padding: '10px', background: '#111b2d', color: '#94a3b8', border: '1px solid #1a2942', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>📥 EXPORT STRATEGIC PDF</button>
-
         <button onClick={() => setSidePanelOpen(!sidePanelOpen)} style={{ width: '100%', padding: '10px', background: '#070a12', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
           {sidePanelOpen ? "◀ HIDE ANALYTICS DRAWER" : "▶ OPEN ANALYTICS DRAWER"}
         </button>
       </div>
 
-      {/* MAIN VIEWPORT MATRIX GRAPH (HIDDEN DURING PRINT) */}
+      {/* MAIN VIEWPORT */}
       <div className="no-print" style={{ flex: 1, padding: isMobile ? '12px' : '24px', display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         <div style={{ flex: 1, padding: isMobile ? '12px' : '24px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px', display: 'flex', flexDirection: 'column' }}>
           {isLoading ? (
@@ -306,7 +308,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* KPI METRICS SIDE PANEL DRAWER (HIDDEN DURING PRINT) */}
+      {/* ANALYTICS PANEL */}
       {sidePanelOpen && (
         <div className="no-print" style={{ width: isMobile ? '100%' : '360px', background: '#0b1325', borderLeft: '1px solid #1a2942', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px', flexShrink: 0 }}>
           <div>
@@ -325,14 +327,12 @@ export default function App() {
         </div>
       )}
 
-      {/* ========================================================
-          DYNAMIC PRINT REPORT LAYER (RENDERED ONLY VIA WINDOW.PRINT)
-          ======================================================== */}
+      {/* PRINT CONTAINERS */}
       <div className="print-report-container" style={{ color: '#000' }}>
         {selectedExportType === 'kids-detailed' && (
           <div>
             <h1 style={{ borderBottom: '2px solid #000', paddingBottom: '6px', margin: 0 }}>Detailed Incident & Event Registry Log</h1>
-            <p style={{ margin: '4px 0 20px 0', fontSize: '13px', color: '#333' }}><strong>Date Generated:</strong> {new Date().toLocaleDateString()} // Factual Observation Record</p>
+            <p style={{ margin: '4px 0 20px 0', fontSize: '13px', color: '#333' }}><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</p>
             <table>
               <thead>
                 <tr>
@@ -363,7 +363,7 @@ export default function App() {
         {selectedExportType === 'next-week' && (
           <div>
             <h1 style={{ borderBottom: '2px solid #000', paddingBottom: '6px', margin: 0 }}>7-Day Lookahead Operational Horizon</h1>
-            <p style={{ margin: '4px 0 20px 0', fontSize: '13px', color: '#333' }}><strong>Horizon Timeline:</strong> Upcoming 7 Days Complete Routine Execution Plan</p>
+            <p style={{ margin: '4px 0 20px 0', fontSize: '13px', color: '#333' }}><strong>Horizon Timeline:</strong> Upcoming 7 Days Plan</p>
             <table>
               <thead>
                 <tr>
@@ -390,8 +390,6 @@ export default function App() {
         {selectedExportType === 'highlights' && (
           <div>
             <h1 style={{ borderBottom: '2px solid #000', paddingBottom: '6px', margin: 0 }}>Calendar System Metrics & Highlights Overview</h1>
-            <p style={{ margin: '4px 0 20px 0', fontSize: '13px', color: '#333' }}><strong>System Quantization Summary Report Profile</strong></p>
-            
             <div style={{ margin: '20px 0', border: '1px solid #111', padding: '16px', background: '#f5f5f5' }}>
               <h3 style={{ margin: '0 0 10px 0' }}>Core KPI Metrics Summary</h3>
               <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', lineHeight: '1.6' }}>
@@ -401,7 +399,6 @@ export default function App() {
                 <li><strong>ATI Corporate Calibration Operations Tracked:</strong> {workLogs} items</li>
               </ul>
             </div>
-
             <h3>Recent Activity Feed Highlights Ledger</h3>
             <table>
               <thead>
@@ -425,13 +422,12 @@ export default function App() {
         )}
       </div>
 
-      {/* --- EXPORT CONFIGURATION MODAL WIZARD --- */}
+      {/* EXPORT CONFIGURATION MODAL */}
       {exportWizardOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000, backdropFilter: 'blur(8px)' }}>
           <div style={{ width: '100%', maxWidth: '480px', padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px' }}>
             <h3 style={{ margin: '0 0 6px 0', color: '#00f0ff', fontSize: '18px' }}>DOCUMENT EXPORT ENGINE WIZARD</h3>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 20px 0' }}>Configure structural format variables for standard PDF print layout generation.</p>
-            
+            <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 20px 0' }}>Configure structural format variables for layout generation.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#070a12', borderRadius: '8px', border: selectedExportType === 'kids-detailed' ? '1px solid #00f0ff' : '1px solid #1a2942', cursor: 'pointer' }}>
                 <input type="radio" name="exportOption" checked={selectedExportType === 'kids-detailed'} onChange={() => setSelectedExportType('kids-detailed')} />
@@ -440,24 +436,21 @@ export default function App() {
                   <div style={{ fontSize: '11px', color: '#64748b' }}>Full analytical matrix data breakdown including location identifiers and severity level values.</div>
                 </div>
               </label>
-
               <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#070a12', borderRadius: '8px', border: selectedExportType === 'next-week' ? '1px solid #00f0ff' : '1px solid #1a2942', cursor: 'pointer' }}>
                 <input type="radio" name="exportOption" checked={selectedExportType === 'next-week'} onChange={() => setSelectedExportType('next-week')} />
                 <div>
                   <div style={{ fontWeight: '700', fontSize: '14px', color: '#fff' }}>2. Next Week's Operational Schedule</div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Filters timelines chronologically to generate a 7-day layout plan for scheduling routines.</div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>Filters timelines chronologically to generate a 7-day layout plan.</div>
                 </div>
               </label>
-
               <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#070a12', borderRadius: '8px', border: selectedExportType === 'highlights' ? '1px solid #00f0ff' : '1px solid #1a2942', cursor: 'pointer' }}>
                 <input type="radio" name="exportOption" checked={selectedExportType === 'highlights'} onChange={() => setSelectedExportType('highlights')} />
                 <div>
                   <div style={{ fontWeight: '700', fontSize: '14px', color: '#fff' }}>3. Calendar Metrics & Highlights Overview</div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>High level metrics summary report containing active volume statistics, counts and key details.</div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>High level metrics summary report containing active volume statistics.</div>
                 </div>
               </label>
             </div>
-
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button onClick={() => setExportWizardOpen(false)} style={{ padding: '10px 16px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>ABORT</button>
               <button onClick={executePrintLayout} style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer' }}>GENERATE CERTIFIED PDF</button>
@@ -466,11 +459,12 @@ export default function App() {
         </div>
       )}
 
-      {/* BASE LOG INDEXING MODAL FORM */}
+      {/* BASE EVENT MODAL FORM */}
       {isModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, padding: '20px', boxSizing: 'border-box' }}>
           <form onSubmit={handleCreateEvent} style={{ width: '100%', maxWidth: '600px', padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h3 style={{ margin: 0, color: '#00f0ff', fontSize: '20px', borderBottom: '1px solid #1a2942', paddingBottom: '12px' }}>LOG TARGET METRIC ENTRY</h3>
+            
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>METRIC CONTEXT SEGMENT</label>
@@ -502,7 +496,7 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(0,240,255,0.02)', border: '1px dashed #1a2942', padding: '16px', borderRadius: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#00f0ff' }}>PRIMARY LOCATION</label>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#00f0ff', marginBottom: '4px' }}>PRIMARY LOCATION</label>
                     <select value={primaryLocation} onChange={(e) => setPrimaryLocation(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
                       <option value="School">School</option>
                       <option value="Home (Dad)">Home (Dad)</option>
@@ -510,11 +504,14 @@ export default function App() {
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#00f0ff' }}>REGISTRY CATEGORY</label>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#00f0ff', marginBottom: '4px' }}>REGISTRY CATEGORY</label>
                     <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: '100%', padding: '8px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '6px', color: '#fff' }}>
                       <option value="Behavioural">Behavioural Record</option>
                       <option value="School">School Correspondence</option>
                       <option value="Concern">Incident Concern Parameter</option>
+                      <option value="Emotional">Emotional State Update</option>
+                      <option value="Health">Medical / Health Note</option>
+                      <option value="Positive Event">Positive Milestone</option>
                     </select>
                   </div>
                 </div>
@@ -529,25 +526,28 @@ export default function App() {
               <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>COMPREHENSIVE FACTUAL OBSERVATION DETAILS</label>
               <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={4} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none' }} required />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '8px' }}>ABORT</button>
-              <button type="submit" style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '8px' }}>COMMIT DATA POINT</button>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 16px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '6px', cursor: 'pointer' }}>ABORT</button>
+              <button type="submit" style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer' }}>COMMIT INDEX LOG</button>
             </div>
           </form>
         </div>
       )}
 
-      {/* EVENT DETAILED INSPECTOR DIALOGUE */}
+      {/* PREVIEW DETAILS POPUP PANEL */}
       {selectedEvent && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ width: '100%', maxWidth: '580px', padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '16px' }}>
-            <h2 style={{ margin: '0 0 4px 0', fontSize: '22px', color: '#fff' }}>{selectedEvent.title}</h2>
-            <p style={{ color: '#00f0ff', fontSize: '11px', textTransform: 'uppercase', margin: '0 0 20px 0' }}>ARRAY ARCHIVE SOURCE // {selectedEvent.calendar}</p>
-            <div style={{ background: '#070a12', padding: '16px', borderRadius: '12px', border: '1px solid #1a2942', marginBottom: '20px' }}>
-              <p style={{ fontSize: '14px', color: '#e2e8f0', margin: 0, lineHeight: '1.6' }}>{selectedEvent.description || "No baseline description details attached."}</p>
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', width: '320px', padding: '20px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '12px', zIndex: 9999, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.5)' }}>
+          <h4 style={{ margin: '0 0 6px 0', color: '#00f0ff', fontSize: '15px' }}>{selectedEvent.title}</h4>
+          <span style={{ display: 'inline-block', padding: '2px 6px', background: '#1e293b', borderRadius: '4px', fontSize: '10px', textTransform: 'uppercase', color: '#94a3b8', marginBottom: '10px' }}>Domain: {selectedEvent.calendar}</span>
+          <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: '#94a3b8', lineHeight: '1.5' }}>{selectedEvent.description || 'No descriptive summary added.'}</p>
+          {selectedEvent.calendar === 'kids-logs' && (
+            <div style={{ fontSize: '11px', background: '#070a12', padding: '8px', borderRadius: '6px', marginBottom: '14px', border: '1px solid #1a2942' }}>
+              <div><strong>Location:</strong> {selectedEvent.metricLocation || 'Unspecified'}</div>
+              <div><strong>Severity Assessment:</strong> Lv {selectedEvent.metricSeverity || 0}</div>
             </div>
-            <button type="button" onClick={() => setSelectedEvent(null)} style={{ width: '100%', padding: '12px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '8px' }}>DISMISS INSPECTOR</button>
-          </div>
+          )}
+          <button onClick={() => setSelectedEvent(null)} style={{ width: '100%', padding: '6px', background: '#1a2942', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>Dismiss Pane</button>
         </div>
       )}
 
