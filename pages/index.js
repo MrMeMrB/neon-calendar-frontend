@@ -9,6 +9,7 @@ const CalendarWrapper = dynamic(() => Promise.all([
 ]).then(([FullCalendar, dayGrid, timeGrid, interaction]) => {
   return function Component({ events, isMobile, handleDateSelect, setSelectedEvent, currentCal }) {
     
+    // Fixed filtering logic to ensure specific individual calendar views pull their data correctly
     const filteredEvents = events.filter(event => {
       if (currentCal === 'combined') return true;
       return event.calendar === currentCal;
@@ -144,19 +145,18 @@ export default function App() {
     setAdminViewActive(false);
   };
 
-  // UPDATED FUNCTION: Grabs internal system data + public Google calendar feed completely on the client side
   const fetchAllData = async () => {
     if (!token) return;
     setIsLoading(true);
     try {
-      // 1. Fetch data from your database backend
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${new Date().getTime()}`, {
+      // 1. Fetch data from your database backend (passing 'combined' if selected, to pull all server events)
+      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal === 'public-gcal' ? 'combined' : currentCal}&t=${new Date().getTime()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
       let unifiedEvents = Array.isArray(data) ? data : [];
 
-      // 2. Fetch public calendar stream dynamically if Viewing Combined or explicitly Selected
+      // 2. Fetch Abington School Google calendar stream dynamically
       if (currentCal === 'combined' || currentCal === 'public-gcal') {
         try {
           const publicRes = await fetch("https://api.icsify.com/v1/feed?url=https://calendar.google.com/calendar/ical/c_ca05bb6f1b85733a8038889ae52245021dcf5f1253116eb7c88dd45745fa5965%40group.calendar.google.com/public/basic.ics");
@@ -165,18 +165,18 @@ export default function App() {
           if (publicData && Array.isArray(publicData.events)) {
             const formattedPublicEvents = publicData.events.map(ev => ({
               id: ev.uid || Math.random().toString(36).substr(2, 9),
-              title: ev.summary || 'Public Calendar Event',
+              title: ev.summary || 'School Event',
               start: ev.start,
               end: ev.end || null,
               description: ev.description || '',
               calendar: 'public-gcal', 
-              backgroundColor: '#0284c7' // Distinct sky blue frame styling
+              backgroundColor: '#0284c7' // Distinct blue color accent
             }));
             
             unifiedEvents = [...unifiedEvents, ...formattedPublicEvents];
           }
         } catch (gcalErr) {
-          console.error("Public stream failed to parse, skipping feed overlay:", gcalErr);
+          console.error("Abington Calendar stream sync bypass activated:", gcalErr);
         }
       }
 
@@ -282,11 +282,11 @@ export default function App() {
             <option value="work">ATI Work Matrix</option>
             <option value="zoe">Zoe's Calendar</option>
             <option value="kids-logs">Kids Behaviour Logs</option>
-            <option value="public-gcal">Shared Public Calendar</option> {/* UPDATED TOGGLE LINE */}
+            <option value="public-gcal">Abington School Calendar</option> {/* UPDATED LABEL */}
           </select>
         </div>
 
-        <button onClick={() => { setFormDomain(currentCal === 'combined' ? 'liam-life' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', fontSize: '13px' }}>+ EXECUTE LOG INDEX</button>
+        <button onClick={() => { setFormDomain(currentCal === 'combined' || currentCal === 'public-gcal' ? 'liam-life' : currentCal); setIsModalOpen(true); }} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer', fontSize: '13px' }}>+ EXECUTE LOG INDEX</button>
         
         <button onClick={triggerPdfExport} style={{ width: '100%', padding: '10px', background: '#111b2d', color: '#94a3b8', border: '1px solid #1a2942', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '12px' }}>📥 EXPORT CERTIFIED PDF</button>
 
@@ -487,7 +487,7 @@ export default function App() {
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: isMobile ? 'flex-end' : 'center', zIndex: 9999, backdropFilter: 'blur(10px)', padding: '20px', boxSizing: 'border-box' }}>
           <div style={{ width: '100%', maxWidth: '580px', padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: isMobile ? '24px 24px 0 0' : '16px', boxSizing: 'border-box', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2 style={{ margin: '0 0 4px 0', fontSize: '22px', color: '#fff', fontWeight: '900' }}>{selectedEvent.title}</h2>
-            <p style={{ color: '#00f0ff', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 20px 0', fontFamily: 'monospace' }}>ARRAY ARCHIVE SOURCE // {selectedEvent.calendar === 'zoe' ? "Zoe's Calendar" : selectedEvent.calendar}</p>
+            <p style={{ color: '#00f0ff', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 20px 0', fontFamily: 'monospace' }}>ARRAY ARCHIVE SOURCE // {selectedEvent.calendar === 'zoe' ? "Zoe's Calendar" : selectedEvent.calendar === 'public-gcal' ? "Abington School Calendar" : selectedEvent.calendar}</p>
             
             <div style={{ background: '#070a12', padding: '16px', borderRadius: '12px', border: '1px solid #1a2942', marginBottom: '20px' }}>
               <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase' }}>Factual Record Details</div>
