@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom/client';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
-// CHANGE THIS: Replace with your live Render backend URL when you deploy
-const BACKEND_API = "http://localhost:5001"; 
+// Linked to your live Render backend Web Service
+const BACKEND_API = "https://calendar-backend-dzdp.onrender.com"; 
 
-function App() {
+export default function App() {
   const [events, setEvents] = useState([]);
   const [currentCal, setCurrentCal] = useState('combined');
   const [notes, setNotes] = useState('');
@@ -25,10 +24,12 @@ function App() {
   const [formDomain, setFormDomain] = useState('combined');
   const [formSentiment, setFormSentiment] = useState('neutral');
   
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  // Hydration-safe responsive window state
+  const [isMobile, setIsMobile] = useState(false);
   const calendarRef = useRef(null);
 
   useEffect(() => {
+    setIsMobile(window.innerWidth < 1024);
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -336,6 +337,3 @@ function App() {
     </div>
   );
 }
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
