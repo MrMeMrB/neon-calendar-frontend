@@ -142,25 +142,31 @@ export default function App() {
   const toggleTodo = (id) => setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const deleteTodo = (id) => setTodos(todos.filter(t => t.id !== id));
 
-  // Determine Active Tab Dataset Content
+  // --- FIX APPLIED HERE: COMBINED DATA DIRECT INTERSECTION ROUTING ---
+  const masterPool = [...zoeEvents, ...workEvents, ...schoolEvents, ...kidsLogs, ...liamLifeEvents]
+    .sort((a, b) => new Date(a.start) - new Date(b.start));
+
   let displayEvents = [];
-  if (activeTab === 'zoe') displayEvents = zoeEvents;
-  else if (activeTab === 'work') displayEvents = workEvents;
-  else if (activeTab === 'school') displayEvents = schoolEvents;
-  else if (activeTab === 'kids-logs') displayEvents = kidsLogs;
-  else if (activeTab === 'liam-life') displayEvents = liamLifeEvents;
-  else {
-    displayEvents = [...zoeEvents, ...workEvents, ...schoolEvents, ...kidsLogs, ...liamLifeEvents]
-      .sort((a, b) => new Date(a.start) - new Date(b.start));
+  if (activeTab === 'zoe') {
+    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'zoe' || String(e.originCalendar || '').toLowerCase() === 'zoe');
+  } else if (activeTab === 'work') {
+    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'work' || String(e.originCalendar || '').toLowerCase() === 'work');
+  } else if (activeTab === 'school') {
+    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'school' || String(e.originCalendar || '').toLowerCase() === 'school');
+  } else if (activeTab === 'kids-logs') {
+    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'kids-logs');
+  } else if (activeTab === 'liam-life') {
+    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'liam-life');
+  } else {
+    displayEvents = masterPool;
   }
 
   // Reminders / Agenda Horizon Logic (Next 72 Hours)
-  const upcomingReminders = [...zoeEvents, ...workEvents, ...schoolEvents, ...kidsLogs, ...liamLifeEvents]
+  const upcomingReminders = masterPool
     .filter(e => {
       const diff = new Date(e.start) - new Date();
       return diff > 0 && diff < 72 * 60 * 60 * 1000;
     })
-    .sort((a, b) => new Date(a.start) - new Date(b.start))
     .slice(0, 4);
 
   const getRelativeTimeString = (dateStr) => {
@@ -216,12 +222,12 @@ export default function App() {
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 px-1">Network Matrix Switcher</h3>
             <div className="space-y-1">
               {[
-                { id: 'combined', name: 'Combined Workspace', icon: Layers, count: zoeEvents.length + workEvents.length + schoolEvents.length + kidsLogs.length + liamLifeEvents.length },
-                { id: 'liam-life', name: "Liam's Life Focus", icon: Zap, count: liamLifeEvents.length },
-                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: zoeEvents.length },
-                { id: 'work', name: 'Work Operations', icon: Briefcase, count: workEvents.length },
-                { id: 'school', name: 'School Calendars', icon: BookOpen, count: schoolEvents.length },
-                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: kidsLogs.length }
+                { id: 'combined', name: 'Combined Workspace', icon: Layers, count: masterPool.length },
+                { id: 'liam-life', name: "Liam's Life Focus", icon: Zap, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'liam-life').length },
+                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'zoe' || String(e.originCalendar || '').toLowerCase() === 'zoe').length },
+                { id: 'work', name: 'Work Operations', icon: Briefcase, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'work' || String(e.originCalendar || '').toLowerCase() === 'work').length },
+                { id: 'school', name: 'School Calendars', icon: BookOpen, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'school' || String(e.originCalendar || '').toLowerCase() === 'school').length },
+                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'kids-logs').length }
               ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800/60'}`}>
                   <div className="flex items-center gap-3"><tab.icon className="w-4 h-4" /><span>{tab.name}</span></div>
