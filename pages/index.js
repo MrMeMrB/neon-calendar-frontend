@@ -73,10 +73,17 @@ export default function App() {
       if (res.ok) {
         const allEvents = await res.json();
         
-        // BACKEND DOMAIN ENGINE FILTER ROUTING
-        setZoeEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'ZOE'));
-        setWorkEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'WORK'));
-        setSchoolEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'SCHOOL'));
+        // --- FIXED DATA ROUTING: DEEP LOWERCASE CHECKS TO CATCH ALL DATA STAMPS ---
+        setZoeEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'ZOE' || String(e.calendar || '').toLowerCase() === 'zoe'));
+        setWorkEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'WORK' || String(e.calendar || '').toLowerCase() === 'work'));
+        
+        // CATCH ANY INCOMING SCHOOL FEED VARIATIONS COMFORTABLY
+        setSchoolEvents(allEvents.filter(e => {
+          const d = String(e.domain || '').toLowerCase();
+          const c = String(e.calendar || '').toLowerCase();
+          return d.includes('school') || c.includes('school') || c.includes('abington');
+        }));
+        
         setKidsLogs(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'KIDS-LOGS' || String(e.calendar || '').toLowerCase() === 'kids-logs'));
         setLiamLifeEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'LIAM-LIFE' || String(e.calendar || '').toLowerCase() === 'liam-life'));
       }
@@ -146,17 +153,19 @@ export default function App() {
   const masterPool = [...zoeEvents, ...workEvents, ...schoolEvents, ...kidsLogs, ...liamLifeEvents]
     .sort((a, b) => new Date(a.start) - new Date(b.start));
 
+  // --- FIXED SWITCH MATRIX ENGINE FOR FILTER DISPLAYED EVENTS ---
   let displayEvents = [];
   if (activeTab === 'zoe') {
-    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'ZOE');
+    displayEvents = zoeEvents;
   } else if (activeTab === 'work') {
-    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'WORK');
+    displayEvents = workEvents;
   } else if (activeTab === 'school') {
-    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'SCHOOL');
+    // 🚨 ABSOLUTE FIX: Safely route out the populated school bucket directly
+    displayEvents = schoolEvents;
   } else if (activeTab === 'kids-logs') {
-    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'KIDS-LOGS' || String(e.calendar || '').toLowerCase() === 'kids-logs');
+    displayEvents = kidsLogs;
   } else if (activeTab === 'liam-life') {
-    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'LIAM-LIFE' || String(e.calendar || '').toLowerCase() === 'liam-life');
+    displayEvents = liamLifeEvents;
   } else {
     displayEvents = masterPool;
   }
@@ -223,11 +232,11 @@ export default function App() {
             <div className="space-y-1">
               {[
                 { id: 'combined', name: 'Combined Workspace', icon: Layers, count: masterPool.length },
-                { id: 'liam-life', name: "Liam's Life Focus", icon: Zap, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'LIAM-LIFE' || String(e.calendar || '').toLowerCase() === 'liam-life').length },
-                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'ZOE').length },
-                { id: 'work', name: 'Work Operations', icon: Briefcase, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'WORK').length },
-                { id: 'school', name: 'School Calendars', icon: BookOpen, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'SCHOOL').length },
-                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'KIDS-LOGS' || String(e.calendar || '').toLowerCase() === 'kids-logs').length }
+                { id: 'liam-life', name: "Liam's Life Focus", icon: Zap, count: liamLifeEvents.length },
+                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: zoeEvents.length },
+                { id: 'work', name: 'Work Operations', icon: Briefcase, count: workEvents.length },
+                { id: 'school', name: 'School Calendars', icon: BookOpen, count: schoolEvents.length },
+                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: kidsLogs.length }
               ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800/60'}`}>
                   <div className="flex items-center gap-3"><tab.icon className="w-4 h-4" /><span>{tab.name}</span></div>
@@ -251,7 +260,7 @@ export default function App() {
               {todos.length === 0 ? (
                 <p className="text-xs text-slate-500 italic p-2">No tasks logged onto the active run list.</p>
               ) : (
-                todos.map(todo => (
+                <todos.map(todo => (
                   <div key={todo.id} className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-xl gap-3">
                     <button onClick={() => toggleTodo(todo.id)} className={`flex items-center gap-2.5 text-sm font-medium text-left transition-colors ${todo.completed ? 'line-through text-slate-500' : 'text-slate-300'}`}>
                       <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${todo.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-700 bg-slate-900'}`}>{todo.completed && <CheckCircle className="w-3 h-3 stroke-[3]" />}</div>
