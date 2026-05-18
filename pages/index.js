@@ -73,12 +73,12 @@ export default function App() {
       if (res.ok) {
         const allEvents = await res.json();
         
-        // BULLETPROOF SYSTEM IDENTIFICATION FOR INDIVIDUAL SLICES
-        setZoeEvents(allEvents.filter(e => String(e.calendar || '').toLowerCase() === 'zoe' || String(e.originCalendar || '').toLowerCase() === 'zoe'));
-        setWorkEvents(allEvents.filter(e => String(e.calendar || '').toLowerCase() === 'work' || String(e.originCalendar || '').toLowerCase() === 'work'));
-        setSchoolEvents(allEvents.filter(e => String(e.calendar || '').toLowerCase() === 'school' || String(e.originCalendar || '').toLowerCase() === 'school'));
-        setKidsLogs(allEvents.filter(e => String(e.calendar || '').toLowerCase() === 'kids-logs'));
-        setLiamLifeEvents(allEvents.filter(e => String(e.calendar || '').toLowerCase() === 'liam-life'));
+        // BACKEND DOMAIN ENGINE FILTER ROUTING
+        setZoeEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'ZOE'));
+        setWorkEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'WORK'));
+        setSchoolEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'SCHOOL'));
+        setKidsLogs(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'KIDS-LOGS' || String(e.calendar || '').toLowerCase() === 'kids-logs'));
+        setLiamLifeEvents(allEvents.filter(e => String(e.domain || '').toUpperCase() === 'LIAM-LIFE' || String(e.calendar || '').toLowerCase() === 'liam-life'));
       }
     } catch (err) { console.error("Database connection fault:", err); }
     finally { setLoading(false); }
@@ -142,21 +142,21 @@ export default function App() {
   const toggleTodo = (id) => setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   const deleteTodo = (id) => setTodos(todos.filter(t => t.id !== id));
 
-  // --- FIX APPLIED HERE: COMBINED DATA DIRECT INTERSECTION ROUTING ---
+  // --- SYSTEM POOL & UNIFIED SWITCH ROUTING ---
   const masterPool = [...zoeEvents, ...workEvents, ...schoolEvents, ...kidsLogs, ...liamLifeEvents]
     .sort((a, b) => new Date(a.start) - new Date(b.start));
 
   let displayEvents = [];
   if (activeTab === 'zoe') {
-    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'zoe' || String(e.originCalendar || '').toLowerCase() === 'zoe');
+    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'ZOE');
   } else if (activeTab === 'work') {
-    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'work' || String(e.originCalendar || '').toLowerCase() === 'work');
+    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'WORK');
   } else if (activeTab === 'school') {
-    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'school' || String(e.originCalendar || '').toLowerCase() === 'school');
+    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'SCHOOL');
   } else if (activeTab === 'kids-logs') {
-    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'kids-logs');
+    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'KIDS-LOGS' || String(e.calendar || '').toLowerCase() === 'kids-logs');
   } else if (activeTab === 'liam-life') {
-    displayEvents = masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'liam-life');
+    displayEvents = masterPool.filter(e => String(e.domain || '').toUpperCase() === 'LIAM-LIFE' || String(e.calendar || '').toLowerCase() === 'liam-life');
   } else {
     displayEvents = masterPool;
   }
@@ -184,11 +184,11 @@ export default function App() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-2">Operator Handle</label>
-              <input type="text" value={username} onChange={e => setUsername(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500" placeholder="LiamBaker" />
+              <input type="text" value={username} onChange={e => setUsername(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-220 focus:outline-none focus:border-indigo-500" placeholder="LiamBaker" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-2">Access Key Override</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500" placeholder="••••••••" />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-220 focus:outline-none focus:border-indigo-500" placeholder="••••••••" />
             </div>
             {authError && <div className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">{authError}</div>}
             <button type="submit" className="w-full bg-indigo-600 text-white font-medium py-3 px-4 rounded-xl shadow-lg hover:bg-indigo-700 transition-colors">Authorize Access</button>
@@ -223,11 +223,11 @@ export default function App() {
             <div className="space-y-1">
               {[
                 { id: 'combined', name: 'Combined Workspace', icon: Layers, count: masterPool.length },
-                { id: 'liam-life', name: "Liam's Life Focus", icon: Zap, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'liam-life').length },
-                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'zoe' || String(e.originCalendar || '').toLowerCase() === 'zoe').length },
-                { id: 'work', name: 'Work Operations', icon: Briefcase, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'work' || String(e.originCalendar || '').toLowerCase() === 'work').length },
-                { id: 'school', name: 'School Calendars', icon: BookOpen, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'school' || String(e.originCalendar || '').toLowerCase() === 'school').length },
-                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: masterPool.filter(e => String(e.calendar || '').toLowerCase() === 'kids-logs').length }
+                { id: 'liam-life', name: "Liam's Life Focus", icon: Zap, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'LIAM-LIFE' || String(e.calendar || '').toLowerCase() === 'liam-life').length },
+                { id: 'zoe', name: "Zoe's Stream", icon: Heart, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'ZOE').length },
+                { id: 'work', name: 'Work Operations', icon: Briefcase, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'WORK').length },
+                { id: 'school', name: 'School Calendars', icon: BookOpen, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'SCHOOL').length },
+                { id: 'kids-logs', name: 'Child Issue Logging', icon: AlertTriangle, count: masterPool.filter(e => String(e.domain || '').toUpperCase() === 'KIDS-LOGS' || String(e.calendar || '').toLowerCase() === 'kids-logs').length }
               ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800/60'}`}>
                   <div className="flex items-center gap-3"><tab.icon className="w-4 h-4" /><span>{tab.name}</span></div>
@@ -309,7 +309,9 @@ export default function App() {
                   <div key={i} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs gap-2">
                     <div className="space-y-0.5 truncate">
                       <div className="font-semibold text-slate-200 truncate">{rem.title}</div>
-                      <div className="text-slate-500 font-mono text-[10px] uppercase">{rem.calendar} • {new Date(rem.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                      <div className="text-slate-500 font-mono text-[10px] uppercase">
+                        {rem.domain ? `DOMAIN: ${rem.domain.toUpperCase()}` : rem.calendar} • {new Date(rem.start).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </div>
                     </div>
                     <span className="text-[10px] font-mono bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded font-bold shrink-0">{getRelativeTimeString(rem.start)}</span>
                   </div>
@@ -352,7 +354,11 @@ export default function App() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h4 className="font-bold text-slate-100 text-sm md:text-base group-hover:text-indigo-400 transition-colors">{event.title}</h4>
                             {event.isExternal && <span className="text-[9px] font-mono font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded">Live External Feed</span>}
-                            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">{event.calendar}</span>
+                            
+                            {/* DYNAMIC SYSTEM BADGE ALIGNMENT */}
+                            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-indigo-400 font-bold">
+                              {event.domain ? `Domain: ${event.domain.toUpperCase()}` : `Source: ${event.calendar}`}
+                            </span>
                           </div>
                           
                           <div className="font-mono text-xs text-slate-400 flex items-center gap-2">
@@ -362,7 +368,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* LIAM'S LIFE CONTROL ACTION ACTION BUTTON */}
+                        {/* LIAM'S LIFE CONTROL ACTION BUTTON */}
                         <button 
                           onClick={() => handleToggleLiamLife(event)}
                           className={`px-3 py-1.5 text-xs rounded-xl border font-semibold flex items-center gap-1.5 transition-all self-start sm:self-auto ${isInLiamLife ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'}`}
@@ -372,7 +378,7 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* EXPLICIT NOTE FIELD CONTAINER (FULLY EXPOSED - NO TRUNCATION) */}
+                      {/* EXPLICIT NOTE FIELD CONTAINER */}
                       {event.description && (
                         <div className="mt-1 pl-2 pt-2 border-t border-slate-900 text-xs md:text-sm text-slate-300 whitespace-pre-wrap bg-slate-900/40 p-2.5 rounded-lg flex items-start gap-2">
                           <FileText className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
