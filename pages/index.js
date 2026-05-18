@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 
-// Completely isolate FullCalendar dynamic evaluation matrix away from server-side scope
 const CalendarWrapper = dynamic(() => Promise.all([
   import('@fullcalendar/react'),
   import('@fullcalendar/daygrid'),
@@ -31,20 +30,12 @@ const CalendarWrapper = dynamic(() => Promise.all([
             end: info.event.endStr,
             description: props.description,
             calendar: props.calendar,
-            sentiment: props.sentiment
+            isExternal: props.isExternal
           });
         }}
         eventContent={(info) => {
-          const ext = info.event.extendedProps;
-          let neonColor = '#64748b';
-          if (ext.calendar === 'work') neonColor = '#00f0ff';
-          if (ext.calendar === 'family') neonColor = '#00ff66';
-          if (ext.calendar === 'kids-logs') {
-            neonColor = ext.sentiment === 'positive' ? '#00ff66' : ext.sentiment === 'negative' ? '#ff0055' : '#ffaa00';
-          }
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 6px', fontSize: '12px', color: '#fff', overflow: 'hidden', background: 'rgba(7,10,18,0.4)', borderRadius: '6px', borderLeft: `3px solid ${neonColor}` }}>
-              <b style={{ opacity: 0.9, whiteSpace: 'nowrap', color: neonColor }}>{info.timeText}</b>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 6px', fontSize: '12px', color: '#fff', overflow: 'hidden', background: 'rgba(7,10,18,0.4)', borderRadius: '6px', borderLeft: `3px solid ${info.event.backgroundColor || '#64748b'}` }}>
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '600' }}>{info.event.title}</span>
             </div>
           );
@@ -59,23 +50,23 @@ const BACKEND_API = "https://calendar-backend-dzdp.onrender.com";
 export default function App() {
   const [events, setEvents] = useState([]);
   const [currentCal, setCurrentCal] = useState('combined');
-  const [notes, setNotes] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Local Entry State Variables
   const [formTitle, setFormTitle] = useState('');
   const [formStart, setFormStart] = useState('');
   const [formEnd, setFormEnd] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formDomain, setFormDomain] = useState('combined');
-  const [formSentiment, setFormSentiment] = useState('neutral');
+
+  // Cross-Calendar Injection Route Selector
+  const [routeTarget, setRouteTarget] = useState('kids-logs');
   
   const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
-  // Safely manage layout metrics only after mounting to the DOM tree
   useEffect(() => {
     setHasMounted(true);
     setIsMobile(window.innerWidth < 1024);
@@ -90,10 +81,6 @@ export default function App() {
       const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}&t=${t}`);
       const data = await res.json();
       if (Array.isArray(data)) setEvents(data);
-      
-      const notesRes = await fetch(`${BACKEND_API}/api/general-notes`);
-      const notesData = await notesRes.json();
-      setNotes(notesData.content || '');
     } catch (err) {
       console.error("Link dropped:", err);
     } finally {
@@ -102,31 +89,49 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (hasMounted) {
-      fetchAllData();
-    }
+    if (hasMounted) fetchAllData();
   }, [currentCal, hasMounted]);
 
-  const handleTriggerSync = async () => {
-    setIsSyncing(true);
+  const handleRouteEvent = async () => {
+    if (!selectedEvent) return;
     try {
-      const res = await fetch(`${BACKEND_API}/api/sync-external`, { method: 'POST' });
+      const res = await fetch(`${BACKEND_API}/api/events/route`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: selectedEvent.id,
+          title: selectedEvent.title,
+          start: selectedEvent.start,
+          end: selectedEvent.end,
+          description: selectedEvent.description,
+          targetCalendar: routeTarget,
+          isExternal: selectedEvent.isExternal
+        })
+      });
       if (res.ok) {
-        await fetchAllData();
-        alert('All subscription streams successfully mapped and saved!');
-      } else {
-        alert('Data fetched, but parse engine threw an error.');
+        setSelectedEvent(null);
+        fetchAllData();
       }
-    } catch (err) {
-      alert('External connection line timeout.');
-    } finally {
-      setIsSyncing(false);
-    }
+    } catch (err) {}
+  };
+
+  const handlePurgeExternal = async (id) => {
+    try {
+      const res = await fetch(`${BACKEND_API}/api/events/learn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: id, status: 'blocked' })
+      });
+      if (res.ok) {
+        setSelectedEvent(null);
+        fetchAllData();
+      }
+    } catch (err) {}
   };
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    if (!formTitle || !formStart) return alert("Title and Start values required.");
+    if (!formTitle || !formStart) return alert("Fields required.");
     try {
       const res = await fetch(`${BACKEND_API}/api/events`, {
         method: 'POST',
@@ -136,8 +141,7 @@ export default function App() {
           start: formStart,
           end: formEnd || null,
           description: formDesc,
-          calendar: formDomain,
-          sentiment: formSentiment
+          calendar: formDomain
         })
       });
       if (res.ok) {
@@ -148,48 +152,6 @@ export default function App() {
     } catch (err) {}
   };
 
-  const handleDeleteEvent = async (id) => {
-    if (!window.confirm("Are you sure you want to permanently delete this event block?")) return;
-    try {
-      const res = await fetch(`${BACKEND_API}/api/events/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setSelectedEvent(null);
-        fetchAllData();
-      }
-    } catch (err) {}
-  };
-
-  const handleVerifyKid = async (id, action) => {
-    try {
-      const res = await fetch(`${BACKEND_API}/api/events/learn`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: id, status: action })
-      });
-      if (res.ok) fetchAllData();
-    } catch (err) {}
-  };
-
-  const handleSaveNotes = async () => {
-    try {
-      const res = await fetch(`${BACKEND_API}/api/general-notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: notes })
-      });
-      if (res.ok) alert('Scratchpad text pinned successfully.');
-    } catch (err) {}
-  };
-
-  const handleDateSelect = (selectInfo) => {
-    const pad = (num) => String(num).padStart(2, '0');
-    const d = selectInfo.start;
-    setFormStart(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-    setFormEnd('');
-    setIsModalOpen(true);
-  };
-
-  // Halt server-side markup generation completely until validation matches
   if (!hasMounted || isLoading) {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', justifyContent: 'center', alignItems: 'center', background: '#070a12' }}>
@@ -199,137 +161,105 @@ export default function App() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#070a12', color: '#f1f5f9', fontFamily: 'system-ui, -apple-system, sans-serif', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#070a12', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* SIDEBAR */}
-      <div style={{ width: isMobile ? '100%' : '380px', background: '#0b1325', borderRight: '1px solid #1a2942', padding: '28px', display: 'flex', flexDirection: 'column', gap: '28px', boxSizing: 'border-box' }}>
+      {/* SIDEBAR PANEL */}
+      <div style={{ width: isMobile ? '100%' : '380px', background: '#0b1325', borderRight: '1px solid #1a2942', padding: '28px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, color: '#00f0ff', textTransform: 'uppercase' }}>Workspace Hub</h1>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '6px 0 0 0' }}>Operational Management Network</p>
+          <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, color: '#00f0ff' }}>Workspace Matrix</h1>
+          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>Data Flow Control</p>
         </div>
 
-        <button onClick={handleTriggerSync} disabled={isSyncing} style={{ width: '100%', padding: '16px', background: isSyncing ? '#1e293b' : 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: isSyncing ? '#64748b' : '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: isSyncing ? 'not-allowed' : 'pointer' }}>
-          {isSyncing ? "Syncing Grid Modules..." : "⚡ Force Sync Pipelines"}
-        </button>
-
         <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '10px' }}>System Domain Filters</label>
-          <select value={currentCal} onChange={(e) => setCurrentCal(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '15px', cursor: 'pointer' }}>
-            <option value="combined">Combined Systems Grid</option>
-            <option value="work">Work Operations</option>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '10px' }}>Systems Grid Focus Filter</label>
+          <select value={currentCal} onChange={(e) => setCurrentCal(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff' }}>
+            <option value="combined">Combined Calendar</option>
+            <option value="work">Work Calendar</option>
+            <option value="zoe">Zoe Calendar</option>
             <option value="family">Family Framework</option>
-            <option value="kids-logs">Kids Behavioral Stream</option>
+            <option value="kids-logs">Kids Behavioural Calendar</option>
           </select>
         </div>
 
-        <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Manual Metric Log Entry</button>
+        <button onClick={() => setIsModalOpen(true)} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#00f0ff', border: '1px solid #1a2942', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Add Entry Metric</button>
 
-        <hr style={{ borderColor: '#1a2942', margin: 0 }} />
-
-        {/* AI TRIAGE */}
+        {/* AI STREAM REVIEW INDEX */}
         <div>
-          <h3 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#475569', margin: '0 0 14px 0', fontWeight: '800' }}>AI Triage Matrix Review</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '200px', overflowY: 'auto' }}>
+          <h3 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#475569', marginBottom: '12px', fontWeight: '800' }}>Pending Kids Anomalies</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '350px', overflowY: 'auto' }}>
             {events.filter(e => e.isUnverified).length === 0 ? (
-              <p style={{ fontSize: '13px', color: '#475569', margin: 0, fontStyle: 'italic' }}>No pending stream anomalies flagged.</p>
+              <p style={{ fontSize: '13px', color: '#475569', margin: 0, fontStyle: 'italic' }}>No anomalies flagged.</p>
             ) : (
               events.filter(e => e.isUnverified).map(ev => (
-                <div key={ev.id} style={{ padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', borderLeft: '4px solid #ff0055' }}>
+                <div key={ev.id} style={{ padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', borderLeft: '4px solid #ffaa00' }}>
                   <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '10px' }}>{ev.title}</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button type="button" onClick={() => handleVerifyKid(ev.id, 'verified_kid')} style={{ flex: 1, padding: '8px', background: '#00ff66', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer', color: '#070a12' }}>Approve</button>
-                    <button type="button" onClick={() => handleVerifyKid(ev.id, 'blocked')} style={{ flex: 1, padding: '8px', background: '#ff0055', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '800', cursor: 'pointer' }}>Purge</button>
+                    <button onClick={() => { setSelectedEvent(ev); setRouteTarget('kids-logs'); }} style={{ flex: 1, padding: '8px', background: '#00ff66', border: 'none', borderRadius: '6px', fontWeight: '800', cursor: 'pointer', color: '#070a12' }}>Route Module</button>
+                    <button onClick={() => handlePurgeExternal(ev.id)} style={{ flex: 1, padding: '8px', background: '#ff0055', border: 'none', borderRadius: '6px', color: '#fff', fontWeight: '800', cursor: 'pointer' }}>Purge</button>
                   </div>
                 </div>
               ))
             )}
           </div>
         </div>
+      </div>
 
-        {/* SCRATCHPAD */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px', minHeight: '180px' }}>
-          <h3 style={{ fontSize: '11px', textTransform: 'uppercase', color: '#475569', margin: 0, fontWeight: '800' }}>System Scratchpad</h3>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ flex: 1, width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', fontSize: '14px', resize: 'none', boxSizing: 'border-box', outline: 'none' }} placeholder="Commit secondary notes here..." />
-          <button onClick={handleSaveNotes} style={{ width: '100%', padding: '14px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>Save Scratchpad Frame</button>
+      {/* CALENDAR BLOCK VIEW */}
+      <div style={{ flex: 1, padding: isMobile ? '12px' : '36px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
+          <CalendarWrapper events={events} isMobile={isMobile} handleDateSelect={() => setIsModalOpen(true)} setSelectedEvent={setSelectedEvent} />
         </div>
       </div>
 
-      {/* CALENDAR */}
-      <div style={{ flex: 1, padding: isMobile ? '12px' : '36px', boxSizing: 'border-box', height: isMobile ? 'auto' : '100vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, padding: '28px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px', boxSizing: 'border-box' }}>
-          <CalendarWrapper 
-            events={events} 
-            isMobile={isMobile} 
-            handleDateSelect={handleDateSelect} 
-            setSelectedEvent={setSelectedEvent} 
-          />
-        </div>
-      </div>
-
-      {/* MODAL: INSPECTOR */}
+      {/* INTERACTIVE COMPONENT MODAL INSPECTOR */}
       {selectedEvent && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, backdropFilter: 'blur(8px)' }}>
           <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '20px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', padding: '6px 12px', background: '#111b2d', border: '1px solid #1a2942', borderRadius: '8px', color: '#00f0ff' }}>{selectedEvent.calendar} Domain</span>
-              <button onClick={() => setSelectedEvent(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '24px' }}>&times;</button>
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '22px', fontWeight: '800' }}>{selectedEvent.title}</h2>
+            <p style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Current Domain context: {selectedEvent.calendar}</p>
+            <p style={{ color: '#94a3b8', fontSize: '14px', margin: '16px 0 24px 0', lineHeight: '1.6' }}>{selectedEvent.description || "No supplemental details logged."}</p>
+            
+            {/* CROSS-CALENDAR WORKFLOW COMPONENT UTILITY */}
+            <div style={{ background: '#070a12', padding: '16px', borderRadius: '12px', border: '1px solid #1a2942', marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '8px' }}>Inject/Route Data To Alternative Workspace Sector</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <select value={routeTarget} onChange={(e) => setRouteTarget(e.target.value)} style={{ flex: 1, padding: '10px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }}>
+                  <option value="kids-logs">Kids Behavioural Calendar</option>
+                  <option value="work">Work Calendar</option>
+                  <option value="zoe">Zoe Calendar</option>
+                  <option value="family">Family Framework</option>
+                </select>
+                <button onClick={handleRouteEvent} style={{ padding: '10px 16px', background: '#00f0ff', border: 'none', borderRadius: '8px', fontWeight: '800', color: '#070a12', cursor: 'pointer' }}>Execute Route</button>
+              </div>
             </div>
-            <h2 style={{ margin: '0 0 14px 0', fontSize: '24px', fontWeight: '800', color: '#fff' }}>{selectedEvent.title}</h2>
-            <p style={{ color: '#94a3b8', fontSize: '15px', margin: '0 0 28px 0', lineHeight: '1.7' }}>{selectedEvent.description || "No alternative descriptive logs available."}</p>
-            <div style={{ display: 'flex', gap: '14px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setSelectedEvent(null)} style={{ padding: '14px 24px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', cursor: 'pointer' }}>Close Frame</button>
-              <button onClick={() => handleDeleteEvent(selectedEvent.id)} style={{ padding: '14px 24px', background: '#ff0055', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>Delete Entry</button>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setSelectedEvent(null)} style={{ padding: '12px 20px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', cursor: 'pointer' }}>Close Frame</button>
+              <button onClick={() => handlePurgeExternal(selectedEvent.id)} style={{ padding: '12px 20px', background: '#ff0055', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}>Purge/Hide</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: ENTRY METRIC */}
+      {/* MANUAL LOG CREATOR */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, padding: '16px', boxSizing: 'border-box', backdropFilter: 'blur(8px)' }}>
-          <div style={{ width: '100%', maxWidth: '540px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
-            <h3 style={{ margin: '0 0 24px 0', fontSize: '22px', fontWeight: '800', color: '#00f0ff' }}>Log System Entry Metric</h3>
-            <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Event Identity Label</label>
-                <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', outline: 'none' }} required />
-              </div>
-              <div style={{ display: 'flex', gap: '16px', flexDirection: isMobile ? 'column' : 'row' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Timeline Start Marker</label>
-                  <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', outline: 'none' }} required />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Timeline End Marker</label>
-                  <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', outline: 'none' }} />
-                </div>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Allocation Sector Domain</label>
-                <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', cursor: 'pointer' }}>
-                  <option value="combined">Combined Systems</option>
-                  <option value="work">Work Space Operations</option>
-                  <option value="family">Family Framework Grid</option>
-                  <option value="kids-logs">Kids Behavioral Stream</option>
-                </select>
-              </div>
-              {formDomain === 'kids-logs' && (
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Sentiment Axis Tracker</label>
-                  <select value={formSentiment} onChange={(e) => setFormSentiment(e.target.value)} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', cursor: 'pointer' }}>
-                    <option value="neutral">Neutral Balance</option>
-                    <option value="positive">Positive Vector</option>
-                    <option value="negative">Negative Exception Entry</option>
-                  </select>
-                </div>
-              )}
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: 8, fontWeight: '700', textTransform: 'uppercase' }}>Context Description Log Summary</label>
-                <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ width: '100%', padding: '14px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '12px', color: '#fff', resize: 'none', outline: 'none' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '14px', marginTop: '10px' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '14px 24px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px', cursor: 'pointer' }}>Cancel Action</button>
-                <button type="submit" style={{ padding: '14px 24px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Inject Data Module</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(4,6,10,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9998, backdropFilter: 'blur(8px)' }}>
+          <div style={{ width: '100%', maxWidth: '500px', padding: '32px', background: '#0b1325', border: '1px solid #1a2942', borderRadius: '20px' }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#00f0ff' }}>Log System Entry Metric</h3>
+            <form onSubmit={handleCreateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <input type="text" placeholder="Entry Label Identity" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
+              <input type="datetime-local" value={formStart} onChange={(e) => setFormStart(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} required />
+              <input type="datetime-local" value={formEnd} onChange={(e) => setFormEnd(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }} />
+              <select value={formDomain} onChange={(e) => setFormDomain(e.target.value)} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff' }}>
+                <option value="work">Work Space Operations</option>
+                <option value="zoe">Zoe Allocation Hub</option>
+                <option value="family">Family Framework Grid</option>
+                <option value="kids-logs">Kids Behavioural Calendar</option>
+              </select>
+              <textarea placeholder="Log Summary Details..." value={formDesc} onChange={(e) => setFormDesc(e.target.value)} rows={3} style={{ width: '100%', padding: '12px', background: '#070a12', border: '1px solid #1a2942', borderRadius: '8px', color: '#fff', resize: 'none' }} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '12px 20px', background: '#111b2d', color: '#fff', border: '1px solid #1a2942', borderRadius: '12px' }}>Cancel</button>
+                <button type="submit" style={{ padding: '12px 20px', background: 'linear-gradient(135deg, #00f0ff 0%, #0072ff 100%)', color: '#070a12', border: 'none', borderRadius: '12px', fontWeight: '800' }}>Inject Data</button>
               </div>
             </form>
           </div>
@@ -339,20 +269,15 @@ export default function App() {
       <style>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .fc-theme-standard td, .fc-theme-standard th { border: 1px solid #111b2d !important; }
-        .fc .fc-button-primary { background: #070a12 !important; border: 1px solid #1a2942 !important; color: #fff !important; font-weight: 700 !important; border-radius: 8px !important; text-transform: capitalize; padding: 8px 14px !important; }
-        .fc .fc-button-primary:hover { background: #111b2d !important; border-color: #00f0ff !important; }
+        .fc .fc-button-primary { background: #070a12 !important; border: 1px solid #1a2942 !important; color: #fff !important; font-weight: 700 !important; border-radius: 8px !important; }
         .fc .fc-button-active { background: #00f0ff !important; color: #070a12 !important; font-weight: 800 !important; }
-        .fc .fc-toolbar-title { color: #fff !important; font-weight: 900 !important; font-size: 20px !important; text-transform: uppercase; letter-spacing: -0.5px; }
-        .fc-day-today { background: rgba(0,240,255,0.03) !important; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #070a12; }
-        ::-webkit-scrollbar-thumb { background: #1a2942; border-radius: 10px; }
+        .fc .fc-toolbar-title { color: #fff !important; font-weight: 900 !important; }
+        .fc-day-today { background: rgba(0,240,255,0.02) !important; }
       `}</style>
     </div>
   );
 }
 
-// Bypasses static site collection entirely
 export async function getServerSideProps() {
   return { props: {} };
 }
