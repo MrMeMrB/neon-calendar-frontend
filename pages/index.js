@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Layers, LogOut, Clipboard, ChevronRight } from 'lucide-react';
+import { Layers, Clipboard, ChevronRight } from 'lucide-react';
 
 const BACKEND_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
@@ -62,9 +62,6 @@ const CalendarWrapper = dynamic(() => Promise.all([
 }), { ssr: false });
 
 export default function App() {
-  const [token, setToken] = useState('');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [events, setEvents] = useState([]);
   const [currentCal, setCurrentCal] = useState('combined');
   const [selectedEvent, setSelectedEvent] = useState(null);
@@ -73,20 +70,13 @@ export default function App() {
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 768);
-    const savedToken = localStorage.getItem('matrix_token');
-    if (savedToken) setToken(savedToken);
-  }, []);
-
-  useEffect(() => {
-    if (token) fetchAllData();
-  }, [token, currentCal]);
+    fetchAllData();
+  }, [currentCal]);
 
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch(`${BACKEND_API}/api/events?calendar=${currentCal}`);
       if (res.ok) {
         const data = await res.json();
         setEvents(data);
@@ -95,26 +85,6 @@ export default function App() {
       console.error("Fetch Error:", err); 
     } finally { 
       setIsLoading(false); 
-    }
-  };
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${BACKEND_API}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem('matrix_token', data.token);
-        setToken(data.token);
-      } else { 
-        alert(data.error || "Login Failed."); 
-      }
-    } catch (err) { 
-      console.error(err); 
     }
   };
 
@@ -133,7 +103,7 @@ export default function App() {
 
       const res = await fetch(`${BACKEND_API}/api/events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       
@@ -145,21 +115,6 @@ export default function App() {
       console.error("Copy execution dropped:", err);
     }
   };
-
-  if (!token) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#020617', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace', color: '#f8fafc', padding: '16px' }}>
-        <form onSubmit={handleLogin} style={{ background: '#0f172a', padding: '36px', borderRadius: '16px', border: '1px solid #1e293b', width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ textAlign: 'center' }}>
-            <h2 style={{ margin: '0', color: '#38bdf8', fontSize: '20px' }}>GRIDNODE ACCESS</h2>
-          </div>
-          <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} required style={{ padding: '12px', background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff' }} />
-          <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required style={{ padding: '12px', background: '#020617', border: '1px solid #334155', borderRadius: '8px', color: '#fff' }} />
-          <button type="submit" style={{ padding: '14px', background: '#2563eb', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>Login</button>
-        </form>
-      </div>
-    );
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#020617', color: '#f1f5f9', fontFamily: 'sans-serif' }}>
@@ -180,7 +135,6 @@ export default function App() {
               {cal.label}
             </button>
           ))}
-          <button onClick={() => { localStorage.clear(); setToken(''); }} style={{ background: '#7f1d1d', border: 'none', borderRadius: '8px', padding: '8px 12px', color: '#fff', cursor: 'pointer' }}><LogOut size={13} /></button>
         </div>
       </header>
 
